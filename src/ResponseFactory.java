@@ -1,6 +1,6 @@
 import java.nio.charset.StandardCharsets;
 
-/** Creates the standard response shapes used by request handlers. */
+/** Helper for generating HTTP responses. */
 public final class ResponseFactory {
     private final ConfigLoader.Config config;
 
@@ -18,12 +18,12 @@ public final class ResponseFactory {
                 .header("Location", location);
     }
 
-    public HttpResponse text(int status, String value) {
+    public HttpResponse text(int status, String content) {
         return new HttpResponse(status, "text/plain; charset=utf-8",
-                value.getBytes(StandardCharsets.UTF_8));
+                content.getBytes(StandardCharsets.UTF_8));
     }
 
-    public HttpResponse bytes(int status, String contentType, byte[] body) {
-        return new HttpResponse(status, contentType, body);
+    public HttpResponse bytes(int status, String contentType, byte[] payload) {
+        return new HttpResponse(status, contentType, payload);
     }
 }
