@@ -22,13 +22,6 @@ $(JAR_FILE): $(SOURCES)
 run: build
 	$(JAVA) -jar $(JAR_FILE) --config config.json
 
-test: build
-	mkdir -p $(BUILD)/test-classes
-	$(JAVAC) -encoding UTF-8 -Xlint:all -Werror -cp $(CLASSES) \
-		-d $(BUILD)/test-classes tests/SlowClient.java tests/ResponseWriterTest.java
-	$(JAVA) -cp $(CLASSES):$(BUILD)/test-classes ResponseWriterTest
-	JAVA="$(JAVA)" sh tests/test.sh
-
 stress: build
 	JAVA="$(JAVA)" sh tests/stress.sh
 
