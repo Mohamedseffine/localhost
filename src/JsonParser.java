@@ -3,26 +3,29 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Small JSON reader used for the server configuration. */
+/** Simple JSON parser. */
 public final class JsonParser {
-    private final String input;
-    private int position;
+    private final String src;
+    private int pos;
 
-    public JsonParser(String input) {
-        this.input = input;
+    public JsonParser(String src) {
+        if (src == null) throw new IllegalArgumentException("Null JSON");
+        this.src = src;
     }
 
     public Object parse() {
-        whitespace();
+        skipWs();
         Object value = value();
-        whitespace();
-        if (!finished()) fail("trailing data");
+        skipWs();
+        if (pos < src.length()) throw new IllegalArgumentException("Trailing data at " + pos);
         return value;
     }
 
     private Object value() {
-        if (finished()) return fail("expected value");
-        return switch (input.charAt(position)) {
+        skipWs();
+        if (pos >= src.length()) throw new IllegalArgumentException("Unexpected EOF");
+        char ch = src.charAt(pos);
+        return switch (ch) {
             case '{' -> object();
             case '[' -> array();
             case '"' -> string();
@@ -34,121 +37,106 @@ public final class JsonParser {
     }
 
     private Map<String, Object> object() {
-        expect('{');
-        whitespace();
-        Map<String, Object> result = new LinkedHashMap<>();
-        if (take('}')) return result;
+        consume('{');
+        skipWs();
+        Map<String, Object> map = new LinkedHashMap<>();
+        if (match('}')) return map;
         while (true) {
+            skipWs();
             String key = string();
-            whitespace();
-            expect(':');
-            whitespace();
-            if (result.containsKey(key)) fail("duplicate key " + key);
-            result.put(key, value());
-            whitespace();
-            if (take('}')) return result;
-            expect(',');
-            whitespace();
+            skipWs();
+            consume(':');
+            skipWs();
+            if (map.containsKey(key)) throw new IllegalArgumentException("Duplicate key: " + key);
+            map.put(key, value());
+            skipWs();
+            if (match('}')) return map;
+            consume(',');
         }
     }
 
     private List<Object> array() {
-        expect('[');
-        whitespace();
-        List<Object> result = new ArrayList<>();
-        if (take(']')) return result;
+        consume('[');
+        skipWs();
+        List<Object> list = new ArrayList<>();
+        if (match(']')) return list;
         while (true) {
-            result.add(value());
-            whitespace();
-            if (take(']')) return result;
-            expect(',');
-            whitespace();
+            list.add(value());
+            skipWs();
+            if (match(']')) return list;
+            consume(',');
         }
     }
 
     private String string() {
-        expect('"');
-        StringBuilder result = new StringBuilder();
-        while (!finished()) {
-            char current = input.charAt(position++);
-            if (current == '"') return result.toString();
-            if (current != '\\') {
-                if (current < 0x20) fail("control character");
-                result.append(current);
+        consume('"');
+        StringBuilder sb = new StringBuilder();
+        while (pos < src.length()) {
+            char ch = src.charAt(pos++);
+            if (ch == '"') return sb.toString();
+            if (ch != '\\') {
+                if (ch < 0x20) throw new IllegalArgumentException("Control char in string");
+                sb.append(ch);
                 continue;
             }
-            if (finished()) fail("bad escape");
-            char escaped = input.charAt(position++);
-            switch (escaped) {
-                case '"', '\\', '/' -> result.append(escaped);
-                case 'b' -> result.append('\b');
-                case 'f' -> result.append('\f');
-                case 'n' -> result.append('\n');
-                case 'r' -> result.append('\r');
-                case 't' -> result.append('\t');
-                case 'u' -> result.append(unicode());
-                default -> fail("bad escape");
+            if (pos >= src.length()) throw new IllegalArgumentException("Bad escape");
+            char esc = src.charAt(pos++);
+            switch (esc) {
+                case '"', '\\', '/' -> sb.append(esc);
+                case 'b' -> sb.append('\b');
+                case 'f' -> sb.append('\f');
+                case 'n' -> sb.append('\n');
+                case 'r' -> sb.append('\r');
+                case 't' -> sb.append('\t');
+                case 'u' -> {
+                    if (pos + 4 > src.length()) throw new IllegalArgumentException("Bad unicode escape");
+                    sb.append((char) Integer.parseInt(src.substring(pos, pos + 4), 16));
+                    pos += 4;
+                }
+                default -> throw new IllegalArgumentException("Unknown escape: " + esc);
             }
         }
-        return fail("unterminated string");
-    }
-
-    private char unicode() {
-        if (position + 4 > input.length()) return fail("bad unicode escape");
-        try {
-            char result = (char) Integer.parseInt(input.substring(position, position + 4), 16);
-            position += 4;
-            return result;
-        } catch (NumberFormatException error) {
-            return fail("bad unicode escape");
-        }
+        throw new IllegalArgumentException("Unterminated string");
     }
 
     private Long number() {
-        int start = position;
-        take('-');
-        if (take('0')) {
-            if (!finished() && Character.isDigit(input.charAt(position))) fail("leading zero");
+        int start = pos;
+        if (pos < src.length() && src.charAt(pos) == '-') pos++;
+        if (pos < src.length() && src.charAt(pos) == '0') {
+            pos++;
+            if (pos < src.length() && Character.isDigit(src.charAt(pos))) {
+                throw new IllegalArgumentException("Leading zero not allowed");
+            }
         } else {
-            int first = position;
-            while (!finished() && Character.isDigit(input.charAt(position))) position++;
-            if (first == position) return fail("invalid number");
+            int digits = pos;
+            while (pos < src.length() && Character.isDigit(src.charAt(pos))) pos++;
+            if (pos == digits) throw new IllegalArgumentException("Invalid number");
         }
-        if (!finished() && ".eE".indexOf(input.charAt(position)) >= 0) return fail("integer required");
-        try {
-            return Long.parseLong(input.substring(start, position));
-        } catch (NumberFormatException error) {
-            return fail("invalid integer");
+        if (pos < src.length() && ".eE".indexOf(src.charAt(pos)) >= 0) {
+            throw new IllegalArgumentException("Integer expected");
         }
+        return Long.parseLong(src.substring(start, pos));
     }
 
-    private Object literal(String word, Object value) {
-        if (!input.startsWith(word, position)) return fail("unexpected token");
-        position += word.length();
-        return value;
+    private Object literal(String expected, Object val) {
+        if (!src.startsWith(expected, pos)) throw new IllegalArgumentException("Expected " + expected);
+        pos += expected.length();
+        return val;
     }
 
-    private void whitespace() {
-        while (!finished() && Character.isWhitespace(input.charAt(position))) position++;
+    private void skipWs() {
+        while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) pos++;
     }
 
-    private boolean take(char wanted) {
-        if (!finished() && input.charAt(position) == wanted) {
-            position++;
+    private boolean match(char ch) {
+        if (pos < src.length() && src.charAt(pos) == ch) {
+            pos++;
             return true;
         }
         return false;
     }
 
-    private void expect(char wanted) {
-        if (!take(wanted)) fail("expected " + wanted);
-    }
-
-    private boolean finished() {
-        return position == input.length();
-    }
-
-    private <T> T fail(String message) {
-        throw new IllegalArgumentException("Invalid JSON at " + position + ": " + message);
+    private void consume(char ch) {
+        if (!match(ch)) throw new IllegalArgumentException("Expected '" + ch + "' at " + pos);
     }
 }
