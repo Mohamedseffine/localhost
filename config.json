@@ -18,25 +18,36 @@
   "routes": [
     {
       "path": "/old",
-      "methods": ["GET"],
+      "methods": [
+        "GET"
+      ],
       "redirect": "/",
       "redirect_status": 302
     },
     {
       "path": "/files/",
-      "methods": ["GET", "POST", "DELETE"],
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
       "root": "uploads",
       "directory_listing": true
     },
     {
       "path": "/cgi",
-      "methods": ["GET", "POST"],
+      "methods": [
+        "GET",
+        "POST"
+      ],
       "root": "cgi/Echo.java",
       "cgi": true
     },
     {
       "path": "/",
-      "methods": ["GET"],
+      "methods": [
+        "GET"
+      ],
       "root": ".",
       "default_file": "index.html",
       "directory_listing": false
@@ -45,13 +56,23 @@
   "servers": [
     {
       "address": "127.0.0.1",
-      "ports": [8080, 8081],
-      "server_names": ["default.local"]
+      "ports": [
+        8080,
+        8081
+      ],
+      "server_names": [
+        "default.local"
+      ]
     },
     {
       "address": "127.0.0.1",
-      "ports": [8080],
-      "server_names": ["named.local"]
+      "ports": [
+        8080
+      ],
+      "server_names": [
+        "named.local"
+      ]
     }
   ]
 }
+
