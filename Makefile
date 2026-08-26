@@ -3,12 +3,12 @@ JAVAC ?= javac
 JAVA ?= java
 JAR ?= jar
 
-SOURCES := $(shell find src -maxdepth 2 -name '*.java' -type f | sort)
+SOURCES := $(shell find src -name '*.java' -type f | sort)
 BUILD := build
 CLASSES := $(BUILD)/classes
 JAR_FILE := $(BUILD)/java-server.jar
 
-.PHONY: all build run test stress audit clean
+.PHONY: all build run audit clean
 
 all: build
 
@@ -22,10 +22,7 @@ $(JAR_FILE): $(SOURCES)
 run: build
 	$(JAVA) -jar $(JAR_FILE) --config config.json
 
-stress: build
-	JAVA="$(JAVA)" sh tests/stress.sh
-
-audit:
+audit: build
 	JAVA="$(JAVA)" sh tests/audit.sh
 
 clean:

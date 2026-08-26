@@ -1,5 +1,6 @@
 build/
 *.class
 *.jar
+.DS_Store
 public/uploads/*
 !public/uploads/.gitkeep
