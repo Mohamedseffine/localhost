@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-/** HTTP/1.1 response model and non-blocking writer. */
+/** Response value object with a resumable wire encoder. */
 public final class HttpResponse {
     public static final int CHUNK_THRESHOLD = 64 * 1024;
     private static final int CHUNK_SIZE = 16 * 1024;
@@ -21,16 +21,22 @@ public final class HttpResponse {
 
     public HttpResponse(int status, String contentType, byte[] body) {
         this.status = status;
-        this.contentType = (contentType == null || contentType.isBlank()) ? "text/plain; charset=utf-8" : contentType;
-        this.body = (body == null) ? new byte[0] : body;
+        this.contentType = contentType == null || contentType.isBlank()
+            ? "text/plain; charset=utf-8" : contentType;
+        this.body = body == null ? new byte[0] : body.clone();
     }
 
     public HttpResponse header(String name, String value) {
-        if (name.contains("\r") || name.contains("\n") || value.contains("\r") || value.contains("\n")) {
-            throw new IllegalArgumentException("CRLF in header");
-        }
+        rejectLineBreaks(name, value);
         headers.add(name + ": " + value);
         return this;
+    }
+
+    private static void rejectLineBreaks(String name, String value) {
+        if (name.indexOf('\r') >= 0 || name.indexOf('\n') >= 0
+                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            throw new IllegalArgumentException("CRLF in header");
+        }
     }
 
     public Writer writer() {
@@ -38,15 +44,18 @@ public final class HttpResponse {
         StringBuilder sb = new StringBuilder(128)
                 .append("HTTP/1.1 ").append(status).append(' ').append(HttpCodes.reason(status)).append("\r\n")
                 .append("Content-Type: ").append(contentType).append("\r\n");
-
-        if (chunked) sb.append("Transfer-Encoding: chunked\r\n");
-        else sb.append("Content-Length: ").append(body.length).append("\r\n");
+        appendLength(sb, chunked);
         sb.append("Connection: close\r\n");
 
         for (String h : headers) sb.append(h).append("\r\n");
         sb.append("\r\n");
 
         return new Writer(sb.toString().getBytes(StandardCharsets.ISO_8859_1), body, chunked);
+    }
+
+    private void appendLength(StringBuilder headers, boolean chunked) {
+        headers.append(chunked ? "Transfer-Encoding: chunked\r\n"
+                : "Content-Length: " + body.length + "\r\n");
     }
 
     public byte[] bytes() {
@@ -93,12 +102,7 @@ public final class HttpResponse {
         private void step() {
             switch (stage) {
                 case HEADERS -> {
-                    if (chunked) nextChunk();
-                    else if (body.length == 0) finish();
-                    else {
-                        current = ByteBuffer.wrap(body);
-                        stage = Stage.BODY;
-                    }
+                    advanceBody();
                 }
                 case BODY, LAST_CHUNK -> finish();
                 case CHUNK_HEAD -> {
@@ -114,6 +118,17 @@ public final class HttpResponse {
                     nextChunk();
                 }
                 case DONE -> current = null;
+            }
+        }
+
+        private void advanceBody() {
+            if (chunked) {
+                nextChunk();
+            } else if (body.length == 0) {
+                finish();
+            } else {
+                current = ByteBuffer.wrap(body);
+                stage = Stage.BODY;
             }
         }
 

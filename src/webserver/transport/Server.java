@@ -17,7 +17,7 @@ import webserver.http.HttpRequest;
 import webserver.response.FaultPages;
 import webserver.routing.Router;
 
-/** Non-blocking NIO HTTP Server. */
+/** Selector-driven transport for the configured listeners. */
 public final class Server implements Closeable, Runnable {
     private final ConfigLoader.Config config;
     private final Router router;
@@ -60,9 +60,7 @@ public final class Server implements Closeable, Runnable {
                     if (!key.isValid()) continue;
 
                     try {
-                        if (key.isAcceptable()) accept(key);
-                        else if (key.isReadable()) read(key);
-                        else if (key.isWritable()) write(key);
+                        dispatch(key);
                     } catch (Exception e) {
                         close(key);
                     }
@@ -74,6 +72,16 @@ public final class Server implements Closeable, Runnable {
                 if (!running) break;
                 System.err.println("Reactor loop error: " + e.getMessage());
             }
+        }
+    }
+
+    private void dispatch(SelectionKey key) throws IOException {
+        if (key.isAcceptable()) {
+            accept(key);
+        } else if (key.isReadable()) {
+            read(key);
+        } else if (key.isWritable()) {
+            write(key);
         }
     }
 
@@ -98,9 +106,9 @@ public final class Server implements Closeable, Runnable {
             return;
         }
 
-        HttpRequest.Result result = HttpRequest.parse(state.input.toByteArray(), config.maxBodySize());
+        HttpRequest.Result result = HttpRequest.parse(state.requestBytes(), config.maxBodySize());
         if (result.state() == HttpRequest.Result.State.COMPLETE) {
-            ConfigLoader.VirtualServer vhost = config.selectServer(result.request().header("host"), state.servers);
+            ConfigLoader.VirtualServer vhost = config.selectServer(result.request().header("host"), state.servers());
             state.attach(router.handle(result.request(), vhost), key);
         } else if (result.state() == HttpRequest.Result.State.ERROR) {
             state.attach(FaultPages.response(config, result.errorCode()), key);
@@ -110,10 +118,10 @@ public final class Server implements Closeable, Runnable {
     private void write(SelectionKey key) throws IOException {
         SocketChannel client = (SocketChannel) key.channel();
         var state = (ConnectionState.Client) key.attachment();
-        if (state.writer == null) return;
+        if (state.writer() == null) return;
 
-        state.writer.writeTo(client);
-        if (state.writer.complete()) close(key);
+        state.writer().writeTo(client);
+        if (state.writer().complete()) close(key);
     }
 
     private void evictTimeouts() {
@@ -121,9 +129,9 @@ public final class Server implements Closeable, Runnable {
         long now = System.nanoTime();
         for (SelectionKey key : selector.keys()) {
             if (key.isValid() && key.attachment() instanceof ConnectionState.Client state) {
-                if (now - state.lastActivity > limit) {
+                if (now - state.lastActivity() > limit) {
                     try {
-                        if (state.writer == null) {
+                        if (state.writer() == null) {
                             state.attach(FaultPages.response(config, 408), key);
                         } else {
                             close(key);

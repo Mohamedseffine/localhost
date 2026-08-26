@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import webserver.config.ConfigLoader;
 
-/** Executes CGI scripts with process isolation and timeout. */
+/** Runs a configured CGI command in an isolated working process. */
 public final class CGIHandler {
     private static final long TIMEOUT_SECONDS = 10L;
 
@@ -19,14 +19,7 @@ public final class CGIHandler {
         Path temp = Files.createTempFile("cgi-out-", ".tmp");
         Process process = null;
         try {
-            ProcessBuilder builder = new ProcessBuilder(List.of(
-                    config.cgi().command(), script.toString(), data == null ? "" : data));
-            builder.directory(config.root().toFile());
-            builder.environment().put("PATH_INFO", pathInfo == null ? "" : pathInfo);
-            builder.redirectErrorStream(true);
-            builder.redirectOutput(temp.toFile());
-
-            process = builder.start();
+                process = start(config, script, data, pathInfo, temp);
             if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 throw new IOException("CGI timeout");
@@ -44,5 +37,16 @@ public final class CGIHandler {
             if (process != null && process.isAlive()) process.destroyForcibly();
             Files.deleteIfExists(temp);
         }
+    }
+
+    private static Process start(ConfigLoader.Config config, Path script, String data,
+            String pathInfo, Path output) throws IOException {
+        ProcessBuilder command = new ProcessBuilder(config.cgi().command(), script.toString(),
+                data == null ? "" : data);
+        command.directory(config.root().toFile());
+        command.environment().put("PATH_INFO", pathInfo == null ? "" : pathInfo);
+        command.redirectErrorStream(true);
+        command.redirectOutput(output.toFile());
+        return command.start();
     }
 }

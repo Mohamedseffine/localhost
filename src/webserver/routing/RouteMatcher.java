@@ -4,7 +4,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import webserver.config.ConfigLoader;
 
-/** URI target decoding and route matching. */
+/** Converts request targets into routeable paths. */
 public final class RouteMatcher {
     private final ConfigLoader.Config config;
 
@@ -14,12 +14,10 @@ public final class RouteMatcher {
 
     public Match find(String rawTarget) {
         Target target = parseTarget(rawTarget);
-        for (ConfigLoader.Route route : config.routes()) {
-            if (matches(route.path(), target.path())) {
-                return new Match(target, route);
-            }
-        }
-        return new Match(target, null);
+        ConfigLoader.Route selected = config.routes().stream()
+                .filter(route -> matches(route.path(), target.path()))
+                .findFirst().orElse(null);
+        return new Match(target, selected);
     }
 
     private static boolean matches(String routePath, String path) {
@@ -35,9 +33,9 @@ public final class RouteMatcher {
         if (rawTarget == null || rawTarget.isEmpty()) {
             throw new IllegalArgumentException("Empty target");
         }
-        int q = rawTarget.indexOf('?');
-        String rawPath = q < 0 ? rawTarget : rawTarget.substring(0, q);
-        String query = q < 0 ? "" : rawTarget.substring(q + 1);
+        String[] pieces = rawTarget.split("\\?", 2);
+        String rawPath = pieces[0];
+        String query = pieces.length == 2 ? pieces[1] : "";
 
         String path = URLDecoder.decode(rawPath.replace("+", "%2B"), StandardCharsets.UTF_8);
         if (!path.startsWith("/") || path.contains("\\") || path.indexOf('\0') >= 0) {

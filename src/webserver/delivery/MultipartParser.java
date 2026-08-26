@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/** Multipart/form-data parser for file uploads. */
+/** Decodes the limited multipart form used by upload routes. */
 public final class MultipartParser {
     private static final byte[] CRLF = {'\r', '\n'};
     private static final byte[] CRLF_CRLF = {'\r', '\n', '\r', '\n'};
@@ -34,11 +34,10 @@ public final class MultipartParser {
             int headerEnd = find(body, pos, CRLF_CRLF);
             if (headerEnd < 0) throw new IllegalArgumentException("Missing header delimiter");
 
-            String headers = new String(body, pos, headerEnd - pos, StandardCharsets.ISO_8859_1);
-            String disposition = null;
-            for (String line : headers.split("\\r\\n")) {
-                if (line.toLowerCase().startsWith("content-disposition:")) disposition = line;
-            }
+            String headers = text(body, pos, headerEnd);
+            String disposition = Arrays.stream(headers.split("\\r\\n"))
+                    .filter(line -> line.regionMatches(true, 0, "content-disposition:", 0, 20))
+                    .findFirst().orElse(null);
             if (disposition == null) throw new IllegalArgumentException("Missing disposition");
 
             String name = param(disposition, "name");
@@ -71,12 +70,13 @@ public final class MultipartParser {
         return null;
     }
 
+    private static String text(byte[] source, int start, int end) {
+        return new String(source, start, end - start, StandardCharsets.ISO_8859_1);
+    }
+
     private static boolean starts(byte[] src, int offset, byte[] prefix) {
-        if (src == null || offset + prefix.length > src.length) return false;
-        for (int i = 0; i < prefix.length; i++) {
-            if (src[offset + i] != prefix[i]) return false;
-        }
-        return true;
+        return src != null && offset >= 0 && offset <= src.length - prefix.length
+                && Arrays.equals(Arrays.copyOfRange(src, offset, offset + prefix.length), prefix);
     }
 
     private static int find(byte[] src, int start, byte[] target) {

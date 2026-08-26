@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Simple JSON parser. */
+/** Small strict JSON reader used for server configuration. */
 public final class JsonParser {
     private final String src;
     private int pos;
@@ -16,11 +16,14 @@ public final class JsonParser {
     }
 
     public Object parse() {
+        Object result = value();
         skipWs();
-        Object value = value();
-        skipWs();
-        if (pos < src.length()) throw new IllegalArgumentException("Trailing data at " + pos);
-        return value;
+        requireEnd();
+        return result;
+    }
+
+    private void requireEnd() {
+        if (pos != src.length()) throw new IllegalArgumentException("Trailing data at " + pos);
     }
 
     private Object value() {
@@ -49,12 +52,16 @@ public final class JsonParser {
             skipWs();
             consume(':');
             skipWs();
-            if (map.containsKey(key)) throw new IllegalArgumentException("Duplicate key: " + key);
+            rejectDuplicate(map, key);
             map.put(key, value());
             skipWs();
             if (match('}')) return map;
             consume(',');
         }
+    }
+
+    private static void rejectDuplicate(Map<String, Object> values, String key) {
+        if (values.containsKey(key)) throw new IllegalArgumentException("Duplicate key: " + key);
     }
 
     private List<Object> array() {
@@ -117,7 +124,8 @@ public final class JsonParser {
         if (pos < src.length() && ".eE".indexOf(src.charAt(pos)) >= 0) {
             throw new IllegalArgumentException("Integer expected");
         }
-        return Long.parseLong(src.substring(start, pos));
+        String digits = src.substring(start, pos);
+        return Long.valueOf(digits);
     }
 
     private Object literal(String expected, Object val) {

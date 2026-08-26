@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -102,24 +103,8 @@ public final class ConfigLoader {
         int timeout = Math.toIntExact(number(json.getOrDefault("request_timeout_seconds", 15L), "request_timeout_seconds"));
         if (timeout < 1 || timeout > 3600) throw new IllegalArgumentException("Timeout out of range: " + timeout);
 
-        Map<String, Object> errorMap = object(required(json, "error_pages", "root"), "error_pages");
-        Map<Integer, Path> errorPages = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> entry : errorMap.entrySet()) {
-            int code = Integer.parseInt(entry.getKey());
-            if (!ERROR_CODES.contains(code)) throw new IllegalArgumentException("Invalid error code: " + code);
-            errorPages.put(code, checkFile(base, string(entry.getValue(), "error_pages." + code)));
-        }
-        if (!errorPages.keySet().containsAll(ERROR_CODES)) {
-            throw new IllegalArgumentException("Missing required error pages");
-        }
-
-        Map<String, Object> cgiMap = object(required(json, "cgi", "root"), "cgi");
-        checkKeys(cgiMap, Set.of("extension", "command"), "cgi");
-        String cgiExt = string(required(cgiMap, "extension", "cgi"), "cgi.extension").toLowerCase(Locale.ROOT);
-        if (!cgiExt.matches("^[a-z0-9]+$")) throw new IllegalArgumentException("Bad CGI ext");
-        String cgiCmd = string(required(cgiMap, "command", "cgi"), "cgi.command");
-        if (cgiCmd.isBlank()) throw new IllegalArgumentException("Empty CGI command");
-        Cgi cgi = new Cgi(cgiExt, cgiCmd);
+        Map<Integer, Path> errorPages = loadErrorPages(json, base);
+        Cgi cgi = loadCgi(json);
 
         List<Route> routes = new ArrayList<>();
         for (Object routeObj : list(required(json, "routes", "root"), "routes")) {
@@ -154,7 +139,7 @@ public final class ConfigLoader {
             boolean routeCgi = booleanValue(r.getOrDefault("cgi", Boolean.FALSE), "route.cgi");
             routes.add(new Route(path, methods, routeRoot, defaultFile, redirect, redirectStatus, listing, routeCgi));
         }
-        routes.sort((a, b) -> Integer.compare(b.path().length(), a.path().length()));
+        routes.sort(Comparator.comparingInt((Route route) -> route.path().length()).reversed());
 
         List<VirtualServer> servers = new ArrayList<>();
         Set<String> allNames = new HashSet<>();
@@ -166,9 +151,10 @@ public final class ConfigLoader {
                 if (address.isBlank()) throw new IllegalArgumentException("Empty address");
 
                 List<Integer> ports = new ArrayList<>();
+                Set<Integer> usedPorts = new HashSet<>();
                 for (Object pObj : list(required(s, "ports", "server"), "server.ports")) {
                     int p = Math.toIntExact(number(pObj, "port"));
-                    if (p < 1 || p > 65535 || ports.contains(p)) throw new IllegalArgumentException("Bad port: " + p);
+                    if (p < 1 || p > 65535 || !usedPorts.add(p)) throw new IllegalArgumentException("Bad port: " + p);
                     ports.add(p);
                 }
                 if (ports.isEmpty()) throw new IllegalArgumentException("Empty server ports");
@@ -199,6 +185,33 @@ public final class ConfigLoader {
         Path p = base.resolve(dirStr).normalize();
         if (!p.startsWith(base) || !Files.isDirectory(p)) throw new IllegalArgumentException("Bad dir: " + dirStr);
         return p.toRealPath();
+    }
+
+    private static Map<Integer, Path> loadErrorPages(Map<String, Object> json, Path base) throws IOException {
+        Map<Integer, Path> pages = new LinkedHashMap<>();
+        Map<String, Object> source = object(required(json, "error_pages", "root"), "error_pages");
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            int code;
+            try {
+                code = Integer.parseInt(entry.getKey());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid error code: " + entry.getKey(), e);
+            }
+            if (!ERROR_CODES.contains(code)) throw new IllegalArgumentException("Invalid error code: " + code);
+            pages.put(code, checkFile(base, string(entry.getValue(), "error_pages." + code)));
+        }
+        if (!pages.keySet().containsAll(ERROR_CODES)) throw new IllegalArgumentException("Missing required error pages");
+        return pages;
+    }
+
+    private static Cgi loadCgi(Map<String, Object> json) {
+        Map<String, Object> source = object(required(json, "cgi", "root"), "cgi");
+        checkKeys(source, Set.of("extension", "command"), "cgi");
+        String extension = string(required(source, "extension", "cgi"), "cgi.extension").toLowerCase(Locale.ROOT);
+        if (!extension.matches("^[a-z0-9]+$")) throw new IllegalArgumentException("Bad CGI ext");
+        String command = string(required(source, "command", "cgi"), "cgi.command");
+        if (command.isBlank()) throw new IllegalArgumentException("Empty CGI command");
+        return new Cgi(extension, command);
     }
 
     private static Path checkFile(Path base, String fileStr) throws IOException {

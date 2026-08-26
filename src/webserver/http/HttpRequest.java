@@ -8,15 +8,13 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** Immutable HTTP/1.1 request representation and parser. */
+/** Parsed request line, headers, and payload for one HTTP/1.1 exchange. */
 public record HttpRequest(String method, String target, Map<String, String> headers, byte[] body) {
     public static final int MAX_HEADERS = 64 * 1024;
     private static final byte[] CRLF = {'\r', '\n'};
     private static final byte[] CRLF_CRLF = {'\r', '\n', '\r', '\n'};
 
-    public String header(String name) {
-        return headers.getOrDefault(name.toLowerCase(Locale.ROOT), "");
-    }
+    public String header(String name) { return headers.getOrDefault(normalize(name), ""); }
 
     public static Result parse(byte[] data, long maxBodySize) {
         if (data == null || data.length == 0) return Result.incomplete();
@@ -25,29 +23,16 @@ public record HttpRequest(String method, String target, Map<String, String> head
         if (headerEnd < 0) return data.length > MAX_HEADERS ? Result.error(400) : Result.incomplete();
         if (headerEnd > MAX_HEADERS) return Result.error(400);
 
-        String headerText = new String(data, 0, headerEnd, StandardCharsets.ISO_8859_1);
-        String[] lines = headerText.split("\\r\\n");
-        if (lines.length == 0) return Result.error(400);
-
-        String[] reqLine = lines[0].trim().split("\\s+");
-        if (reqLine.length != 3 || !"HTTP/1.1".equals(reqLine[2]) || !reqLine[1].startsWith("/")) {
+        String[] lines = new String(data, 0, headerEnd, StandardCharsets.ISO_8859_1).split("\\r\\n");
+        String[] reqLine = lines.length == 0 ? new String[0] : lines[0].trim().split("\\s+");
+        if (!validRequestLine(reqLine)) {
             return Result.error(400);
         }
 
-        Map<String, String> headers = new LinkedHashMap<>();
-        for (int i = 1; i < lines.length; i++) {
-            int colon = lines[i].indexOf(':');
-            if (colon <= 0) return Result.error(400);
-            String name = lines[i].substring(0, colon).trim().toLowerCase(Locale.ROOT);
-            String value = lines[i].substring(colon + 1).trim();
-            if (name.isEmpty()) return Result.error(400);
-            headers.merge(name, value, (a, b) -> a + ", " + b);
-        }
+        Map<String, String> headers = headers(lines);
+        if (headers == null || !headers.containsKey("host")) return Result.error(400);
 
-        if (!headers.containsKey("host")) return Result.error(400);
-
-        String method = reqLine[0];
-        String target = reqLine[1];
+        String method = reqLine[0], target = reqLine[1];
         int bodyStart = headerEnd + 4;
         String te = headers.getOrDefault("transfer-encoding", "");
         boolean chunked = !te.isEmpty();
@@ -61,11 +46,11 @@ public record HttpRequest(String method, String target, Map<String, String> head
                     return Result.error(400);
                 }
             }
-            return Result.complete(new HttpRequest(method, target, Collections.unmodifiableMap(headers), new byte[0]));
+            return complete(method, target, headers, new byte[0]);
         }
 
         if (!HttpMethods.POST.equals(method) && !HttpMethods.DELETE.equals(method)) {
-            return Result.complete(new HttpRequest(method, target, Collections.unmodifiableMap(headers), new byte[0]));
+            return complete(method, target, headers, new byte[0]);
         }
 
         byte[] body;
@@ -92,6 +77,29 @@ public record HttpRequest(String method, String target, Map<String, String> head
             body = Arrays.copyOfRange(data, bodyStart, bodyStart + (int) length);
         }
 
+        return complete(method, target, headers, body);
+    }
+
+    private static String normalize(String name) { return name.toLowerCase(Locale.ROOT); }
+
+    private static boolean validRequestLine(String[] line) {
+        return line.length == 3 && "HTTP/1.1".equals(line[2]) && line[1].startsWith("/");
+    }
+
+    private static Map<String, String> headers(String[] lines) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (int index = 1; index < lines.length; index++) {
+            String line = lines[index];
+            int colon = line.indexOf(':');
+            if (colon <= 0) return null;
+            String name = normalize(line.substring(0, colon).trim());
+            if (name.isEmpty()) return null;
+            result.merge(name, line.substring(colon + 1).trim(), (left, right) -> left + ", " + right);
+        }
+        return result;
+    }
+
+    private static Result complete(String method, String target, Map<String, String> headers, byte[] body) {
         return Result.complete(new HttpRequest(method, target, Collections.unmodifiableMap(headers), body));
     }
 

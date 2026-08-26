@@ -9,7 +9,7 @@ import java.util.List;
 import webserver.config.ConfigLoader;
 import webserver.http.HttpResponse;
 
-/** Attachments held by selector keys. */
+/** Mutable per-channel state attached to selector keys. */
 public final class ConnectionState {
     private ConnectionState() {}
 
@@ -17,10 +17,10 @@ public final class ConnectionState {
 
     public static final class Client {
         final List<ConfigLoader.VirtualServer> servers;
-        final ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
-        final ByteArrayOutputStream input = new ByteArrayOutputStream();
-        HttpResponse.Writer writer;
-        long lastActivity = System.nanoTime();
+        private final ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+        private final ByteArrayOutputStream input = new ByteArrayOutputStream();
+        private HttpResponse.Writer writer;
+        private long lastActivity = System.nanoTime();
 
         public Client(List<ConfigLoader.VirtualServer> servers) {
             this.servers = servers;
@@ -38,6 +38,11 @@ public final class ConnectionState {
             }
             return n;
         }
+
+        public byte[] requestBytes() { return input.toByteArray(); }
+        public List<ConfigLoader.VirtualServer> servers() { return servers; }
+        public HttpResponse.Writer writer() { return writer; }
+        public long lastActivity() { return lastActivity; }
 
         public void attach(HttpResponse response, SelectionKey key) {
             this.writer = response.writer();
