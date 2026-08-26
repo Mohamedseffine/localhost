@@ -1,3 +1,5 @@
+package webserver.http;
+
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;

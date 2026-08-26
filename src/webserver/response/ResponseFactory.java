@@ -1,4 +1,8 @@
+package webserver.response;
+
 import java.nio.charset.StandardCharsets;
+import webserver.config.ConfigLoader;
+import webserver.http.HttpResponse;
 
 /** Helper for generating HTTP responses. */
 public final class ResponseFactory {

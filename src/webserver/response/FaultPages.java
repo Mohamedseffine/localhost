@@ -1,6 +1,11 @@
+package webserver.response;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import webserver.config.ConfigLoader;
+import webserver.http.HttpCodes;
+import webserver.http.HttpResponse;
 
 /** Error response generator with configured page support. */
 public final class FaultPages {

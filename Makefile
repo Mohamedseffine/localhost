@@ -17,7 +17,7 @@ build: $(JAR_FILE)
 $(JAR_FILE): $(SOURCES)
 	mkdir -p $(CLASSES)
 	$(JAVAC) -encoding UTF-8 -Xlint:all -Werror -d $(CLASSES) $(SOURCES)
-	$(JAR) --create --file $(JAR_FILE) --main-class Main -C $(CLASSES) .
+	$(JAR) --create --file $(JAR_FILE) --main-class webserver.bootstrap.Main -C $(CLASSES) .
 
 run: build
 	$(JAVA) -jar $(JAR_FILE) --config config.json

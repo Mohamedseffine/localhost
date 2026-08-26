@@ -1,9 +1,12 @@
+package webserver.delivery;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import webserver.config.ConfigLoader;
 
 /** Executes CGI scripts with process isolation and timeout. */
 public final class CGIHandler {

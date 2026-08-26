@@ -1,3 +1,5 @@
+package webserver.config;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import webserver.http.HttpMethods;
 
 /** Loads and validates the JSON configuration file. */
 public final class ConfigLoader {
@@ -149,7 +152,7 @@ public final class ConfigLoader {
 
             boolean listing = booleanValue(r.getOrDefault("directory_listing", Boolean.FALSE), "directory_listing");
             boolean routeCgi = booleanValue(r.getOrDefault("cgi", Boolean.FALSE), "route.cgi");
-            routes.add(new Route(path, List.copyOf(methods), routeRoot, defaultFile, redirect, redirectStatus, listing, routeCgi));
+            routes.add(new Route(path, methods, routeRoot, defaultFile, redirect, redirectStatus, listing, routeCgi));
         }
         routes.sort((a, b) -> Integer.compare(b.path().length(), a.path().length()));
 
@@ -182,15 +185,14 @@ public final class ConfigLoader {
                         names.add(name);
                     }
                 }
-                servers.add(new VirtualServer(address, List.copyOf(ports), List.copyOf(names)));
+                servers.add(new VirtualServer(address, ports, names));
             } catch (IllegalArgumentException e) {
                 System.err.println("Skipping invalid server: " + e.getMessage());
             }
         }
         if (servers.isEmpty()) throw new IllegalArgumentException("No valid virtual servers");
 
-        return new Config(root, uploads, maxBodySize, timeout, Map.copyOf(errorPages),
-                List.copyOf(routes), List.copyOf(servers), cgi);
+        return new Config(root, uploads, maxBodySize, timeout, errorPages, routes, servers, cgi);
     }
 
     private static Path checkDir(Path base, String dirStr) throws IOException {

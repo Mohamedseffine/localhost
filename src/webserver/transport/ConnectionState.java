@@ -1,9 +1,13 @@
+package webserver.transport;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.List;
+import webserver.config.ConfigLoader;
+import webserver.http.HttpResponse;
 
 /** Attachments held by selector keys. */
 public final class ConnectionState {

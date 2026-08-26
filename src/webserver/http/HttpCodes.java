@@ -1,3 +1,5 @@
+package webserver.http;
+
 /** HTTP status code metadata and RFC 9110 reason phrases. */
 public final class HttpCodes {
     public static final int OK = 200;

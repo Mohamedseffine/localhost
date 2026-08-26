@@ -20,6 +20,19 @@ Run the automated test suite:
 make audit
 ```
 
+## Architecture
+
+The implementation is organized by responsibility under `src/webserver/`:
+
+- `bootstrap`: command-line entry point and lifecycle setup.
+- `config`: JSON parsing and configuration validation.
+- `http`: HTTP messages, method rules, and protocol validation.
+- `routing`: route selection and request orchestration.
+- `delivery`: filesystem resources, uploads, multipart data, and CGI execution.
+- `response`: configured error pages and response factories.
+- `transport`: the non-blocking NIO reactor and connection state.
+- `session`: cookie-backed session storage.
+
 ## Features
 
 - **Reactor Pattern**: Single-threaded non-blocking I/O event loop (`Selector`).

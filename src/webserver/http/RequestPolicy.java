@@ -1,3 +1,5 @@
+package webserver.http;
+
 /** Request validation against core protocol invariants. */
 public final class RequestPolicy {
     private RequestPolicy() {}
