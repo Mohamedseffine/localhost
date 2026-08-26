@@ -7,9 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Small HTTP response serializer. */
+/** HTTP/1.1 response model and non-blocking writer. */
 public final class HttpResponse {
-    private static final int CHUNK_THRESHOLD = 64 * 1024;
+    public static final int CHUNK_THRESHOLD = 64 * 1024;
     private static final int CHUNK_SIZE = 16 * 1024;
 
     private final int status;
@@ -19,13 +19,13 @@ public final class HttpResponse {
 
     public HttpResponse(int status, String contentType, byte[] body) {
         this.status = status;
-        this.contentType = contentType;
-        this.body = body;
+        this.contentType = (contentType == null || contentType.isBlank()) ? "text/plain; charset=utf-8" : contentType;
+        this.body = (body == null) ? new byte[0] : body;
     }
 
     public HttpResponse header(String name, String value) {
         if (name.contains("\r") || name.contains("\n") || value.contains("\r") || value.contains("\n")) {
-            throw new IllegalArgumentException("Invalid header");
+            throw new IllegalArgumentException("CRLF in header");
         }
         headers.add(name + ": " + value);
         return this;
@@ -33,31 +33,32 @@ public final class HttpResponse {
 
     public Writer writer() {
         boolean chunked = body.length > CHUNK_THRESHOLD;
-        StringBuilder text = new StringBuilder()
+        StringBuilder sb = new StringBuilder(128)
                 .append("HTTP/1.1 ").append(status).append(' ').append(HttpCodes.reason(status)).append("\r\n")
                 .append("Content-Type: ").append(contentType).append("\r\n");
-        if (chunked) text.append("Transfer-Encoding: chunked\r\n");
-        else text.append("Content-Length: ").append(body.length).append("\r\n");
-        text
-                .append("Connection: close\r\n");
-        for (String header : headers) text.append(header).append("\r\n");
-        text.append("\r\n");
-        return new Writer(text.toString().getBytes(StandardCharsets.ISO_8859_1), body, chunked);
+
+        if (chunked) sb.append("Transfer-Encoding: chunked\r\n");
+        else sb.append("Content-Length: ").append(body.length).append("\r\n");
+        sb.append("Connection: close\r\n");
+
+        for (String h : headers) sb.append(h).append("\r\n");
+        sb.append("\r\n");
+
+        return new Writer(sb.toString().getBytes(StandardCharsets.ISO_8859_1), body, chunked);
     }
 
     public byte[] bytes() {
         try {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            Writer responseWriter = writer();
-            WritableByteChannel channel = Channels.newChannel(output);
-            while (!responseWriter.complete()) responseWriter.writeTo(channel);
-            return output.toByteArray();
-        } catch (IOException impossible) {
-            throw new IllegalStateException(impossible);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Writer w = writer();
+            WritableByteChannel ch = Channels.newChannel(out);
+            while (!w.complete()) w.writeTo(ch);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 
-    /** Writes one response incrementally without assembling a second full payload in memory. */
     public static final class Writer {
         private static final byte[] CRLF = {'\r', '\n'};
         private static final byte[] LAST_CHUNK = {'0', '\r', '\n', '\r', '\n'};
@@ -66,8 +67,8 @@ public final class HttpResponse {
         private final boolean chunked;
         private ByteBuffer current;
         private Stage stage = Stage.HEADERS;
-        private int bodyPosition;
-        private int currentChunkSize;
+        private int pos = 0;
+        private int chunkSize = 0;
 
         private Writer(byte[] headers, byte[] body, boolean chunked) {
             this.body = body;
@@ -77,17 +78,17 @@ public final class HttpResponse {
 
         public int writeTo(WritableByteChannel channel) throws IOException {
             if (current == null) return 0;
-            int written = channel.write(current);
-            if (written < 0) throw new IOException("Channel closed while writing response");
-            if (!current.hasRemaining()) advance();
-            return written;
+            int n = channel.write(current);
+            if (n < 0) throw new IOException("Channel closed");
+            if (!current.hasRemaining()) step();
+            return n;
         }
 
         public boolean complete() {
             return stage == Stage.DONE;
         }
 
-        private void advance() {
+        private void step() {
             switch (stage) {
                 case HEADERS -> {
                     if (chunked) nextChunk();
@@ -98,16 +99,16 @@ public final class HttpResponse {
                     }
                 }
                 case BODY, LAST_CHUNK -> finish();
-                case CHUNK_SIZE -> {
-                    current = ByteBuffer.wrap(body, bodyPosition, currentChunkSize).slice();
-                    stage = Stage.CHUNK_DATA;
+                case CHUNK_HEAD -> {
+                    current = ByteBuffer.wrap(body, pos, chunkSize).slice();
+                    stage = Stage.CHUNK_BODY;
                 }
-                case CHUNK_DATA -> {
+                case CHUNK_BODY -> {
                     current = ByteBuffer.wrap(CRLF);
-                    stage = Stage.CHUNK_END;
+                    stage = Stage.CHUNK_TAIL;
                 }
-                case CHUNK_END -> {
-                    bodyPosition += currentChunkSize;
+                case CHUNK_TAIL -> {
+                    pos += chunkSize;
                     nextChunk();
                 }
                 case DONE -> current = null;
@@ -115,15 +116,15 @@ public final class HttpResponse {
         }
 
         private void nextChunk() {
-            if (bodyPosition == body.length) {
+            if (pos == body.length) {
                 current = ByteBuffer.wrap(LAST_CHUNK);
                 stage = Stage.LAST_CHUNK;
                 return;
             }
-            currentChunkSize = Math.min(CHUNK_SIZE, body.length - bodyPosition);
-            String size = Integer.toHexString(currentChunkSize) + "\r\n";
-            current = ByteBuffer.wrap(size.getBytes(StandardCharsets.US_ASCII));
-            stage = Stage.CHUNK_SIZE;
+            chunkSize = Math.min(CHUNK_SIZE, body.length - pos);
+            String head = Integer.toHexString(chunkSize) + "\r\n";
+            current = ByteBuffer.wrap(head.getBytes(StandardCharsets.US_ASCII));
+            stage = Stage.CHUNK_HEAD;
         }
 
         private void finish() {
@@ -131,8 +132,6 @@ public final class HttpResponse {
             stage = Stage.DONE;
         }
 
-        private enum Stage { HEADERS, BODY, CHUNK_SIZE, CHUNK_DATA, CHUNK_END, LAST_CHUNK, DONE }
+        private enum Stage { HEADERS, BODY, CHUNK_HEAD, CHUNK_BODY, CHUNK_TAIL, LAST_CHUNK, DONE }
     }
-
-    public static String reason(int status) { return HttpCodes.reason(status); }
 }
