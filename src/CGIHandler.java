@@ -5,38 +5,41 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-/** Runs the one configured CGI type with a ten-second limit. */
+/** Executes CGI scripts with process isolation and timeout. */
 public final class CGIHandler {
+    private static final long TIMEOUT_SECONDS = 10L;
+
     private CGIHandler() {}
 
-    public static byte[] execute(ConfigLoader.Config config, Path script, String data,
-                             String pathInfo) throws IOException {
-        Path output = Files.createTempFile("java-server-cgi-", ".out");
+    public static byte[] execute(ConfigLoader.Config config, Path script, String data, String pathInfo)
+            throws IOException {
+        Path temp = Files.createTempFile("cgi-out-", ".tmp");
+        Process process = null;
         try {
             ProcessBuilder builder = new ProcessBuilder(List.of(
-                    config.cgi().command(), script.toString(), data));
+                    config.cgi().command(), script.toString(), data == null ? "" : data));
             builder.directory(config.root().toFile());
-            builder.environment().put("PATH_INFO", pathInfo);
+            builder.environment().put("PATH_INFO", pathInfo == null ? "" : pathInfo);
             builder.redirectErrorStream(true);
-            builder.redirectOutput(output.toFile());
-            Process process = builder.start();
-            try {
-                if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
-                    throw new IOException("CGI timeout");
-                }
-            } catch (InterruptedException error) {
-                Thread.currentThread().interrupt();
+            builder.redirectOutput(temp.toFile());
+
+            process = builder.start();
+            if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                throw new IOException("CGI interrupted", error);
+                throw new IOException("CGI timeout");
             }
-            byte[] result = Files.readAllBytes(output);
+
+            byte[] output = Files.readAllBytes(temp);
             if (process.exitValue() != 0) {
-                throw new IOException("CGI failed: " + new String(result, StandardCharsets.UTF_8).trim());
+                throw new IOException("CGI error: " + new String(output, StandardCharsets.UTF_8).trim());
             }
-            return result;
+            return output;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("CGI interrupted", e);
         } finally {
-            Files.deleteIfExists(output);
+            if (process != null && process.isAlive()) process.destroyForcibly();
+            Files.deleteIfExists(temp);
         }
     }
 }
