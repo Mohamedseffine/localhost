@@ -3,68 +3,87 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/** Binary-safe parser for the multipart fields needed by uploads. */
+/** Multipart/form-data parser for file uploads. */
 public final class MultipartParser {
+    private static final byte[] CRLF = {'\r', '\n'};
+    private static final byte[] CRLF_CRLF = {'\r', '\n', '\r', '\n'};
+
     private MultipartParser() {}
 
     public record Part(String name, String filename, byte[] content) {}
 
     public static List<Part> read(byte[] body, String contentType) {
-        String boundary = parameter(contentType, "boundary");
-        if (boundary == null || boundary.isBlank() || boundary.length() > 200) {
-            throw new IllegalArgumentException("Missing multipart boundary");
+        String boundary = param(contentType, "boundary");
+        if (boundary == null || boundary.isBlank()) {
+            throw new IllegalArgumentException("Missing boundary");
         }
+
         byte[] marker = ("--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
         if (find(body, 0, marker) != 0) throw new IllegalArgumentException("Bad multipart body");
-        int position = marker.length;
+
+        int pos = marker.length;
         List<Part> parts = new ArrayList<>();
-        while (position < body.length) {
-            if (starts(body, position, new byte[] {'-', '-'})) return parts;
-            if (!starts(body, position, new byte[] {'\r', '\n'})) throw new IllegalArgumentException("Bad boundary");
-            position += 2;
-            int headerEnd = find(body, position, new byte[] {'\r', '\n', '\r', '\n'});
-            if (headerEnd < 0) throw new IllegalArgumentException("Bad multipart headers");
-            String headers = new String(body, position, headerEnd - position, StandardCharsets.ISO_8859_1);
+
+        while (pos < body.length) {
+            if (starts(body, pos, new byte[] {'-', '-'})) return parts;
+            if (!starts(body, pos, CRLF)) throw new IllegalArgumentException("Bad boundary line ending");
+            pos += 2;
+
+            int headerEnd = find(body, pos, CRLF_CRLF);
+            if (headerEnd < 0) throw new IllegalArgumentException("Missing header delimiter");
+
+            String headers = new String(body, pos, headerEnd - pos, StandardCharsets.ISO_8859_1);
             String disposition = null;
             for (String line : headers.split("\\r\\n")) {
                 if (line.toLowerCase().startsWith("content-disposition:")) disposition = line;
             }
             if (disposition == null) throw new IllegalArgumentException("Missing disposition");
-            String name = parameter(disposition, "name");
-            String filename = parameter(disposition, "filename");
+
+            String name = param(disposition, "name");
+            String filename = param(disposition, "filename");
             if (name == null || name.isEmpty()) throw new IllegalArgumentException("Missing field name");
+
             int contentStart = headerEnd + 4;
-            int contentEnd = find(body, contentStart,
-                    ("\r\n--" + boundary).getBytes(StandardCharsets.ISO_8859_1));
-            if (contentEnd < 0) throw new IllegalArgumentException("Unterminated multipart body");
+            byte[] nextDelimiter = ("\r\n--" + boundary).getBytes(StandardCharsets.ISO_8859_1);
+            int contentEnd = find(body, contentStart, nextDelimiter);
+            if (contentEnd < 0) throw new IllegalArgumentException("Unterminated multipart part");
+
             parts.add(new Part(name, filename, Arrays.copyOfRange(body, contentStart, contentEnd)));
-            position = contentEnd + 2 + marker.length;
+            pos = contentEnd + 2 + marker.length;
         }
         throw new IllegalArgumentException("Unterminated multipart body");
     }
 
-    private static String parameter(String value, String name) {
-        for (String item : value.split(";")) {
-            int equals = item.indexOf('=');
-            if (equals > 0 && item.substring(0, equals).trim().equalsIgnoreCase(name)) {
-                String result = item.substring(equals + 1).trim();
-                return result.startsWith("\"") && result.endsWith("\"")
-                        ? result.substring(1, result.length() - 1) : result;
+    private static String param(String header, String name) {
+        if (header == null) return null;
+        for (String segment : header.split(";")) {
+            int eq = segment.indexOf('=');
+            if (eq > 0 && segment.substring(0, eq).trim().equalsIgnoreCase(name)) {
+                String val = segment.substring(eq + 1).trim();
+                if (val.startsWith("\"") && val.endsWith("\"") && val.length() >= 2) {
+                    return val.substring(1, val.length() - 1);
+                }
+                return val;
             }
         }
         return null;
     }
 
-    private static boolean starts(byte[] input, int start, byte[] wanted) {
-        if (start + wanted.length > input.length) return false;
-        for (int i = 0; i < wanted.length; i++) if (input[start + i] != wanted[i]) return false;
+    private static boolean starts(byte[] src, int offset, byte[] prefix) {
+        if (src == null || offset + prefix.length > src.length) return false;
+        for (int i = 0; i < prefix.length; i++) {
+            if (src[offset + i] != prefix[i]) return false;
+        }
         return true;
     }
 
-    private static int find(byte[] input, int start, byte[] wanted) {
+    private static int find(byte[] src, int start, byte[] target) {
+        if (src == null || target == null || start < 0) return -1;
         outer:
-        for (int i = start; i <= input.length - wanted.length; i++) {
-            for (int j = 0; j < wanted.length; j++) if (input[i + j] != wanted[j]) continue outer;
+        for (int i = start; i <= src.length - target.length; i++) {
+            for (int j = 0; j < target.length; j++) {
+                if (src[i + j] != target[j]) continue outer;
+            }
             return i;
         }
         return -1;
