@@ -8,6 +8,7 @@ A lightweight, non-blocking HTTP/1.1 server implemented with pure Java core libr
 make clean
 make build
 make run
+
 ```
 
 The server binds to configured ports (`8080` and `8081` by default) using `config.json`.
