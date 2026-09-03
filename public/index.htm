@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Java HTTP Server — Detailed Annotated Guide</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+<style>
+body {
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 45px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #24292f;
+  background: #ffffff;
+}
+* { box-sizing: border-box; }
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 28px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid #d0d7de; }
+h2 { font-size: 1.5em; padding-bottom: .3em; border-bottom: 1px solid #d0d7de; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1em; }
+p, blockquote, ul, ol, dl, table, pre { margin-top: 0; margin-bottom: 16px; }
+ul, ol { padding-left: 2em; }
+li + li { margin-top: .25em; }
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { font-weight: 600; }
+code {
+  padding: .2em .4em;
+  margin: 0;
+  font-size: 85%;
+  background: rgba(175,184,193,0.2);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+pre {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background: #f6f8fa;
+  border-radius: 6px;
+}
+pre code {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  white-space: pre;
+}
+table {
+  width: max-content;
+  max-width: 100%;
+  border-spacing: 0;
+  border-collapse: collapse;
+  overflow: auto;
+  display: block;
+}
+table th, table td {
+  padding: 6px 13px;
+  border: 1px solid #d0d7de;
+}
+table th {
+  font-weight: 600;
+  background: #f6f8fa;
+}
+table tr:nth-child(2n) { background: #f6f8fa; }
+blockquote {
+  margin-left: 0;
+  padding: 0 1em;
+  color: #57606a;
+  border-left: .25em solid #d0d7de;
+}
+hr {
+  height: .25em;
+  padding: 0;
+  margin: 24px 0;
+  background-color: #d8dee4;
+  border: 0;
+}
+@media (max-width: 767px) {
+  body { padding: 20px; font-size: 15px; }
+  h1 { font-size: 1.7em; }
+  h2 { font-size: 1.35em; }
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Java HTTP Server — Detailed Annotated Guide</h1>
+</header>
+<p><strong># Java HTTP Server — detailed annotated guide</strong></p>
+<p>This repository implements a compact HTTP/1.1 server using Java core
+libraries</p>
+<p>only. Its defining design is a single-threaded, non-blocking Java NIO
+reactor:</p>
+<p>one event loop observes many client sockets instead of giving each
+client a</p>
+<p>thread.</p>
+<p>It handles one HTTP request per TCP connection. Every response
+includes</p>
+<p>Connection: close, and the connection is closed after the response
+has fully</p>
+<p>been sent. HTTP keep-alive and request pipelining are intentionally
+not</p>
+<p>implemented.</p>
+<p><strong>## Build, run, and verify</strong></p>
+<p>~~~sh</p>
+<p>make build # compile source and create build/java-server.jar</p>
+<p>make run # start using config.json</p>
+<p>make audit # build, start, test, then stop the server</p>
+<p>~~~</p>
+<p>The configured listeners are 127.0.0.1:8080 and 127.0.0.1:8081. The
+audit</p>
+<p>suite needs those ports to be free while it runs.</p>
+<p><strong>## How an HTTP server works</strong></p>
+<p>HTTP is an application protocol that normally uses a TCP connection.
+A server:</p>
+<p>1. Creates a listening socket at an IP address and port.</p>
+<p>2. Accepts a client's TCP connection.</p>
+<p>3. Receives bytes until a full HTTP request is present.</p>
+<p>4. Parses the request line, headers, and optional body.</p>
+<p>5. Validates the request and selects application behaviour.</p>
+<p>6. Sends a status line, headers, a blank line, and response
+content.</p>
+<p>7. Keeps or closes the connection according to its policy. This
+server closes it.</p>
+<p>For example, a client sends:</p>
+<p>~~~http</p>
+<p>GET / HTTP/1.1</p>
+<p>Host: default.local</p>
+<p>~~~</p>
+<p>The server replies with a status line such as HTTP/1.1 200 OK,
+response headers</p>
+<p>such as Content-Type and Content-Length, a blank line, and the
+requested bytes.</p>
+<p>TCP does not split data into HTTP messages. A request may arrive
+across several</p>
+<p>reads, or several protocol pieces may arrive in one read. That is why
+this</p>
+<p>server stores each client's received bytes and invokes its parser
+again after</p>
+<p>each successful socket read.</p>
+<p><strong>## Configuration</strong></p>
+<p>[config.json](config.json) controls runtime behaviour.</p>
+<p>| Setting | Meaning in this project |</p>
+<p>| --- | --- |</p>
+<p>| root | The public document root, public |</p>
+<p>| uploads | Upload directory below the root, public/uploads |</p>
+<p>| max_body_size | 1 MiB limit for fixed-length and chunked bodies
+|</p>
+<p>| request_timeout_seconds | 15 seconds for an incomplete request
+|</p>
+<p>| error_pages | HTML documents for error responses |</p>
+<p>| cgi | Permits Java CGI programs, launched with java |</p>
+<p>| routes | URL prefixes, allowed methods, filesystem roots,
+redirects, and behaviour |</p>
+<p>| servers | Listener addresses/ports and virtual-host server names
+|</p>
+<p>The sample routes are:</p>
+<p>| URL | Methods | Function |</p>
+<p>| --- | --- | --- |</p>
+<p>| /old | GET | 302 redirect to / |</p>
+<p>| /files/ | GET, POST, DELETE | directory listing and upload
+management |</p>
+<p>| /cgi | GET, POST | execute public/cgi/Echo.java |</p>
+<p>| / | GET | static document root, defaulting to index.html |</p>
+<p><strong>## Code walkthrough</strong></p>
+<p>This section walks through each source component and its meaningful
+functions</p>
+<p>and code blocks. It is designed to be read alongside the linked
+files.</p>
+<p><strong>### 1. Bootstrap</strong></p>
+<p>[Main.java](src/webserver/bootstrap/Main.java) is the program entry
+point.</p>
+<p>- main obtains the configuration path, invokes ConfigLoader.load,
+creates</p>
+<p>Server, adds a JVM shutdown hook, and then calls Server.run.</p>
+<p>- The hook calls Server.close so Ctrl-C or process shutdown releases
+sockets.</p>
+<p>- configuration accepts no arguments (config.json), --config
+FILE,</p>
+<p>--config=FILE, or --help / -h. Any other form is rejected.</p>
+<p>- Invalid configuration prints a configuration error and exits 2.
+Other</p>
+<p>start/run failures print a server error and exit 1.</p>
+<p><strong>### 2. Configuration and JSON</strong></p>
+<p>[ConfigLoader.java](src/webserver/config/ConfigLoader.java) parses
+the top-level</p>
+<p>configuration and enforces safety rules.</p>
+<p>- Config is an immutable record containing root/upload paths, limits,
+routes,</p>
+<p>virtual servers, error pages, and CGI settings.</p>
+<p>- Config.listenAddresses flattens all server port lists to
+distinct</p>
+<p>InetSocketAddress values, so two virtual hosts on the same port share
+one</p>
+<p>listener socket.</p>
+<p>- Config.serversFor retrieves the virtual servers relevant to a
+listener.</p>
+<p>- Config.selectServer compares a case-insensitive Host header with
+configured</p>
+<p>names, strips its :port suffix, and falls back to the first
+server.</p>
+<p>- load normalizes the configuration file, requires a regular file,
+parses JSON,</p>
+<p>and rejects unknown top-level properties.</p>
+<p>- It resolves root against the config's directory and uses real-path
+checks to</p>
+<p>stop configured paths or symlinks from leaving that base
+directory.</p>
+<p>- It creates the upload directory if needed and verifies that its
+real path is</p>
+<p>below root.</p>
+<p>- The body limit and timeout range are validated, as are required
+error pages.</p>
+<p>- Route parsing requires a leading slash, one or more supported
+methods, safe</p>
+<p>relative file paths, valid redirects, and valid redirect codes. It
+finally</p>
+<p>sorts routes longest-first.</p>
+<p>- Virtual-server parsing checks port range, duplicate ports, valid
+server-name</p>
+<p>characters, and globally duplicate server names. Invalid individual
+server</p>
+<p>entries are skipped; zero valid entries is fatal.</p>
+<p>- The helper methods at the bottom verify JSON types and allowed keys
+rather</p>
+<p>than relying on unchecked casts.</p>
+<p>[JsonParser.java](src/webserver/config/JsonParser.java) is a small
+strict JSON</p>
+<p>reader with no external library.</p>
+<p>- parse reads exactly one value, skips whitespace, and rejects
+trailing data.</p>
+<p>- value chooses object, array, string, true/false/null, or integer
+parsing.</p>
+<p>- object preserves insertion order and rejects duplicate object
+keys.</p>
+<p>- string handles valid JSON escapes, rejects control characters and
+bad unicode</p>
+<p>escapes, and requires a closing quote.</p>
+<p>- number accepts JSON integers. Decimal or exponent forms are
+rejected because</p>
+<p>the server configuration only permits integers.</p>
+<p>- consume, match, and skipWs are the parser's cursor primitives.</p>
+<p><strong>### 3. Transport: selector reactor</strong></p>
+<p>[Server.java](src/webserver/transport/Server.java) is the main
+networking loop.</p>
+<p>- Its constructor opens one Selector. For every distinct configured
+address and</p>
+<p>port, it opens a ServerSocketChannel, makes it non-blocking, binds
+it, and</p>
+<p>registers it with that Selector for OP_ACCEPT.</p>
+<p>- The registration attachment is a ConnectionState.Listener
+containing the</p>
+<p>virtual hosts associated with that listening address/port.</p>
+<p>- run repeatedly calls selector.select(500), iterates selectedKeys,
+removes each</p>
+<p>key from the selected set, and calls dispatch.</p>
+<p>- dispatch uses one if / else-if chain: isAcceptable, else
+isReadable, else</p>
+<p>isWritable. Thus one selected key takes at most one of these actions
+on a</p>
+<p>dispatch pass.</p>
+<p>- accept accepts exactly one pending client. In non-blocking mode
+accept may</p>
+<p>return null; that is checked and treated as no work. A client is
+configured</p>
+<p>non-blocking, gets TCP_NODELAY, and is registered with the same
+Selector for</p>
+<p>OP_READ.</p>
+<p>- read performs one socket read and asks HttpRequest.parse whether
+accumulated</p>
+<p>bytes are INCOMPLETE, COMPLETE, or ERROR. A complete request is
+routed; a</p>
+<p>complete/error result attaches an HttpResponse writer and switches to
+OP_WRITE.</p>
+<p>- write invokes the response writer once. It closes the connection if
+the</p>
+<p>response is fully sent.</p>
+<p>- evictTimeouts sends a 408 response for a client that never
+completed a</p>
+<p>request in the timeout. A client already writing a response is simply
+closed.</p>
+<p>- Any exception while dispatching a key calls close(key), which
+cancels the key</p>
+<p>and closes the socket. close() wakes the selector, closes listeners
+and</p>
+<p>clients, then closes the selector for shutdown.</p>
+<p>[ConnectionState.java](src/webserver/transport/ConnectionState.java)
+provides</p>
+<p>the state attached to a SelectionKey.</p>
+<p>- Listener is a record holding virtual-server candidates for an
+accepted socket.</p>
+<p>- Client has a reusable 16 KiB buffer, a ByteArrayOutputStream
+containing all</p>
+<p>received request bytes, the response writer, and last activity
+time.</p>
+<p>- Client.read clears the buffer and calls SocketChannel.read exactly
+once. It</p>
+<p>copies positive bytes to the accumulated request and refreshes
+activity time.</p>
+<p>- A zero-byte read leaves state as-is. A negative count is returned
+so Server</p>
+<p>can close the connection.</p>
+<p>- attach records the writer and replaces OP_READ with OP_WRITE. A
+normal</p>
+<p>connection is therefore registered for reading until a response
+exists, then</p>
+<p>only for writing until it closes.</p>
+<p><strong>### 4. HTTP request parser and response writer</strong></p>
+<p>[HttpRequest.java](src/webserver/http/HttpRequest.java) defines the
+parsed</p>
+<p>request record and contains the incremental parser.</p>
+<p>- parse searches for CRLF-CRLF. Before finding it, the parser
+returns</p>
+<p>INCOMPLETE unless the header limit has been exceeded.</p>
+<p>- It requires an HTTP/1.1 request line with three elements, an
+absolute-path</p>
+<p>target, valid header syntax, and a Host header.</p>
+<p>- Header names are normalized to lower case; repeated headers are
+combined.</p>
+<p>- GET must carry no body. POST and DELETE accept Content-Length or
+exactly</p>
+<p>Transfer-Encoding: chunked.</p>
+<p>- Fixed length values are parsed, rejected if negative/invalid/too
+large, and</p>
+<p>cause INCOMPLETE until enough body bytes have arrived.</p>
+<p>- parseChunks reads hexadecimal chunk sizes, handles chunk extensions
+by</p>
+<p>ignoring text after a semicolon, enforces framing, and enforces the
+configured</p>
+<p>total-size limit.</p>
+<p>- Result is deliberately three-state: INCOMPLETE means continue
+reading later;</p>
+<p>COMPLETE contains a request; ERROR contains a status code.</p>
+<p>[HttpResponse.java](src/webserver/http/HttpResponse.java) formats an
+HTTP</p>
+<p>response and provides a resumable writer.</p>
+<p>- The response holds status, content type, a cloned body, and
+additional</p>
+<p>headers. header rejects CR or LF in a header name/value.</p>
+<p>- writer formats the status line, content type, Content-Length or</p>
+<p>Transfer-Encoding: chunked, Connection: close, extra headers, and an
+empty</p>
+<p>line.</p>
+<p>- Bodies larger than 64 KiB are written as 16 KiB HTTP chunks.
+Smaller bodies</p>
+<p>get a Content-Length.</p>
+<p>- Writer tracks stages: headers, fixed body, chunk head/body/tail,
+final chunk,</p>
+<p>and done. It retains this state between readiness events.</p>
+<p>- Writer.writeTo calls channel.write(current) exactly once. When
+current is</p>
+<p>exhausted, step advances to the next buffer but does not make a
+second write.</p>
+<p>The next OP_WRITE selection resumes it.</p>
+<p>- bytes is a test/convenience method that serializes to an in-memory
+channel;</p>
+<p>the network server does not use it for client sockets.</p>
+<p>[HttpMethods.java](src/webserver/http/HttpMethods.java) declares GET,
+POST, and</p>
+<p>DELETE as supported and supplies their Allow header value.</p>
+<p>[RequestPolicy.java](src/webserver/http/RequestPolicy.java) returns
+400 for a</p>
+<p>null request or GET with a body, and 405 for unsupported methods.</p>
+<p>[HttpCodes.java](src/webserver/http/HttpCodes.java) maps status
+numbers to their</p>
+<p>HTTP reason phrases.</p>
+<p><strong>### 5. Routing and resources</strong></p>
+<p>[Router.java](src/webserver/routing/Router.java) maps a complete
+request to an</p>
+<p>HttpResponse.</p>
+<p>- handle first gets or creates a session, applies RequestPolicy,
+finds a route,</p>
+<p>enforces the route's method list, handles redirects, and dispatches
+GET,</p>
+<p>POST, or DELETE.</p>
+<p>- get resolves the request target. It can list a directory, execute
+CGI, or</p>
+<p>return a static file.</p>
+<p>- post parses multipart data for upload routes. Non-multipart data is
+given to</p>
+<p>CGI; a non-CGI, non-multipart POST returns an empty 200 response.</p>
+<p>- delete removes only an existing regular file. A missing/nonregular
+target is</p>
+<p>a 404.</p>
+<p>- BadRequest becomes 400, Forbidden becomes 403, and unexpected
+errors are</p>
+<p>logged and returned as 500.</p>
+<p>- The returned response always gets X-Server-Name; a newly made
+session gets</p>
+<p>Set-Cookie too.</p>
+<p>[RouteMatcher.java](src/webserver/routing/RouteMatcher.java)
+separates the</p>
+<p>target's path from its query string, decodes the path while
+preserving literal</p>
+<p>plus signs, and rejects backslashes/NULs. It returns the first
+matching route.</p>
+<p>Since ConfigLoader pre-sorted routes, this is longest-prefix
+matching. A route</p>
+<p>ending in slash also matches the slashless version so a canonical 301
+may be</p>
+<p>returned later.</p>
+<p>[ResourceService.java](src/webserver/delivery/ResourceService.java)
+is the</p>
+<p>filesystem resource and containment boundary.</p>
+<p>- resolve removes the route prefix, combines the remainder with the
+route root,</p>
+<p>then checks normalized paths and resolved real paths remain under
+the</p>
+<p>configured root. This prevents dot-dot traversal and symlink
+escapes.</p>
+<p>- It returns a Resource record carrying path, status, and an optional
+redirect,</p>
+<p>allowing Router to decide the response.</p>
+<p>- Directories redirect to their trailing-slash URL, resolve a default
+file,</p>
+<p>return a directory listing if permitted, or return 403.</p>
+<p>- directoryListing URL-encodes link targets and HTML-escapes visible
+filenames.</p>
+<p>- multipart obtains parts from MultipartParser, stores uploaded files
+using</p>
+<p>random UUID names under uploads, and returns a JSON summary.</p>
+<p>- verifyCgi checks the configured extension; contentType maps common
+extensions.</p>
+<p>- The final helpers escape JSON/HTML and restrict filename-derived
+extensions.</p>
+<p>[MultipartParser.java](src/webserver/delivery/MultipartParser.java)
+reads the</p>
+<p>multipart/form-data subset used for uploads.</p>
+<p>- It finds the required boundary, validates the initial delimiter,
+and loops</p>
+<p>through parts.</p>
+<p>- For each part it finds the header/body separator, requires a</p>
+<p>Content-Disposition header and a field name, and finds the following
+boundary.</p>
+<p>- It returns a Part with name, optional filename, and raw content.
+Invalid</p>
+<p>structure produces an IllegalArgumentException that ResourceService
+maps to</p>
+<p>BadRequest.</p>
+<p>[CGIHandler.java](src/webserver/delivery/CGIHandler.java) executes
+configured</p>
+<p>CGI programs.</p>
+<p>- execute creates a temporary output file, starts the process, waits
+a maximum</p>
+<p>of ten seconds, reads captured output, checks the exit code, and
+removes the</p>
+<p>file in finally.</p>
+<p>- start builds command + script path + request data, makes public the
+child</p>
+<p>working directory, sets PATH_INFO, merges stderr into stdout, and
+redirects</p>
+<p>output to the temporary file.</p>
+<p>- CGI execution is application/file-process I/O; it is separate from
+readiness</p>
+<p>handling of client sockets.</p>
+<p>[FaultPages.java](src/webserver/response/FaultPages.java) loads
+configured HTML</p>
+<p>error pages, falling back to a plain status message.</p>
+<p>[ResponseFactory.java](src/webserver/response/ResponseFactory.java)
+centralizes</p>
+<p>error, redirect, text, and arbitrary-byte response construction.</p>
+<p>[SessionStore.java](src/webserver/session/SessionStore.java) holds
+UUID sessions</p>
+<p>with an expiry map. It removes expired entries, renews valid cookies,
+and makes</p>
+<p>new cookies with Max-Age, Path, HttpOnly, and SameSite=Lax.</p>
+<p>[Echo.java](public/cgi/Echo.java) displays CGI PATH_INFO and supplied
+data.</p>
+<p>[index.html](public/index.html) is the default static resource.</p>
+<p><strong>## Selector-to-client execution flow</strong></p>
+<p>~~~text</p>
+<p>Server.run</p>
+<p>-&gt; selector.select(500) wait for registered readiness</p>
+<p>-&gt; iterate selector.selectedKeys</p>
+<pre><code>   -&gt; dispatch(key)
+
+        acceptable -&gt; accept(key)        accept one client; register OP\_READ
+
+        readable   -&gt; read(key)          one SocketChannel.read
+
+             incomplete -&gt; retain OP\_READ
+
+             complete   -&gt; route; attach writer; register OP\_WRITE
+
+             error      -&gt; attach error writer; register OP\_WRITE
+
+        writable   -&gt; write(key)         one SocketChannel.write
+
+             partial response -&gt; retain OP\_WRITE
+
+             complete response -&gt; cancel key and close socket</code></pre>
+<p>~~~</p>
+<p>The Client attachment retains parser input and response-writer state
+between</p>
+<p>selection events. No client that cannot read or write now blocks
+other ready</p>
+<p>clients from being processed.</p>
+<p><strong>## Direct answers to the I/O questions</strong></p>
+<p><strong>### How does an HTTP server work?</strong></p>
+<p>It listens for TCP clients, accepts connections, reads and parses
+HTTP message</p>
+<p>bytes, validates/routs requests to application behaviour, sends
+correctly</p>
+<p>framed HTTP responses, and manages client lifecycle. This server uses
+static</p>
+<p>file delivery, redirects, directory listings, uploads, CGI, sessions,
+and</p>
+<p>error pages as its application behaviours, then closes the
+connection.</p>
+<p><strong>### Which function was used for I/O multiplexing and how does
+it work?</strong></p>
+<p>Server.run calls java.nio.channels.Selector.select(500). A Selector
+is Java</p>
+<p>NIO's select/poll/epoll-style I/O multiplexing facility. Many
+non-blocking</p>
+<p>channels are registered for OP_ACCEPT, OP_READ, or OP_WRITE. select
+waits up to</p>
+<p>500 milliseconds for readiness and selectedKeys supplies the ready
+channels.</p>
+<p><strong>### Is the server using only one select (or equivalent) to
+read client requests and write answers?</strong></p>
+<p>Yes. Server creates one Selector and contains one network readiness
+wait:</p>
+<p>selector.select(500). Every listener and every accepted client is
+registered</p>
+<p>with that same instance. There is no per-client selector, worker
+thread,</p>
+<p>blocking client read, or blocking client write in the normal network
+path.</p>
+<p><strong>### Why is it important to use only one select and how was it
+achieved?</strong></p>
+<p>For this single-threaded reactor, one selector gives one efficient
+waiting point</p>
+<p>for all clients. A slow client cannot hold up the event-loop thread,
+and the</p>
+<p>program avoids one blocking wait or thread per client. The
+constructor registers</p>
+<p>all listeners on its selector; accept registers all clients on it;
+and</p>
+<p>ConnectionState.Client stores each connection's partial input/output
+state.</p>
+<p>attach changes the key from OP_READ to OP_WRITE rather than creating
+another</p>
+<p>readiness loop.</p>
+<p>One selector suits this project's design. Larger production services
+can use</p>
+<p>several event loops for scalability, but that is a different
+architecture.</p>
+<p><strong>### From selection to client I/O, is there only one read or
+write per client per select?</strong></p>
+<p>Yes, for one selected key and one dispatch pass.</p>
+<p>- dispatch uses an if / else-if chain, so it invokes at most one of
+accept,</p>
+<p>read, or write for that key.</p>
+<p>- ConnectionState.Client.read contains one SocketChannel.read
+call.</p>
+<p>- HttpResponse.Writer.writeTo contains one channel.write call.</p>
+<p>If a channel were reported readable and writable simultaneously,
+dispatch</p>
+<p>selects the read branch first. Normal clients are also interested in
+either</p>
+<p>OP_READ or OP_WRITE, never both, so one operation per selection is
+the normal</p>
+<p>case. A partial response resumes only on a later OP_WRITE
+notification.</p>
+<p><strong>### Are the return values for I/O functions checked
+properly?</strong></p>
+<p>Yes for client socket operations.</p>
+<p>- ServerSocketChannel.accept may return null in non-blocking mode;
+accept tests</p>
+<p>for null and returns.</p>
+<p>- SocketChannel.read gives a count: positive data is retained, -1 is
+peer EOF</p>
+<p>and makes Server.read close the key, and zero is a valid non-blocking
+result</p>
+<p>that leaves parser state unchanged.</p>
+<p>- WritableByteChannel.write gives a count: Writer.writeTo treats a
+negative</p>
+<p>result as a closed/error channel. It advances state only when the
+ByteBuffer</p>
+<p>is fully consumed. A zero result retains the buffer for later
+OP_WRITE.</p>
+<p>The return count from select itself is not used, but that is safe
+here because</p>
+<p>the code always iterates the selected-key set. I/O exceptions reach
+the</p>
+<p>per-selection exception handler.</p>
+<p><strong>### If an error is returned by the previous functions on a
+socket, is the client removed?</strong></p>
+<p>Yes. EOF from read calls close(key) directly. A negative write causes
+an</p>
+<p>IOException; any exception while dispatching a selected key is caught
+in</p>
+<p>Server.run and passed to close(key). close cancels the key and closes
+its</p>
+<p>channel. Completed normal responses also close the client.</p>
+<p>Invalid HTTP is deliberately different: parse returns an error code,
+the server</p>
+<p>queues a 400 or 413 response, writes it, and then closes the
+client.</p>
+<p><strong>### Is writing and reading ALWAYS done through a select (or
+equivalent)?</strong></p>
+<p>For client network sockets, yes. Client reads occur only in the
+readable-key</p>
+<p>branch after Selector.select reports readiness. Client writes occur
+only in the</p>
+<p>writable-key branch after readiness. Shutdown closes channels
+directly, but it</p>
+<p>does not exchange application bytes.</p>
+<p>The repository does use file/process I/O outside the selector: it
+reads config,</p>
+<p>static files, and error pages; writes uploads; and reads CGI
+temporary output.</p>
+<p>Those are not client-socket operations, so socket readiness
+multiplexing does</p>
+<p>not apply to them.</p>
+<p><strong>## Tests and layout</strong></p>
+<p>[tests/audit.sh](tests/audit.sh) is an integration smoke suite. It
+checks static</p>
+<p>serving, both ports, redirects, error/method rules, body limits,
+headers,</p>
+<p>virtual-host routing, CGI GET/POST/chunked input, session reuse,
+multipart</p>
+<p>upload/download/delete, and 100 concurrent GET requests. It is
+valuable</p>
+<p>end-to-end coverage, not a complete protocol conformance suite.</p>
+<p>~~~text</p>
+<p>src/webserver/</p>
+<p>bootstrap/ process entry point</p>
+<p>config/ JSON parsing and validation</p>
+<p>transport/ Selector reactor and connection state</p>
+<p>http/ HTTP parser and response encoder</p>
+<p>routing/ route selection and dispatch</p>
+<p>delivery/ static files, uploads, directory listing, CGI</p>
+<p>response/ error pages and response factory</p>
+<p>session/ cookie session storage</p>
+<p>public/ site files, CGI sample, uploads</p>
+<p>error_pages/ configured error documents</p>
+<p>tests/ audit script</p>
+<p>Makefile build, run, audit, clean</p>
+<p>~~~</p>
+</body>
+</html>

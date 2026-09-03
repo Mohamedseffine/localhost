@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LocalServer 2.0 | Java NIO HTTP/1.1</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --card: #1f2937;
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --accent: #818cf8;
+      --success: #34d399;
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --border: #374151;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at top, #1e1b4b 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 2.5rem 1.5rem 1.5rem;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      margin-bottom: 1rem;
+    }
+    h1 {
+      font-size: 2.75rem;
+      margin: 0 0 0.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.subtitle {
+      color: var(--muted);
+      font-size: 1.15rem;
+      max-width: 650px;
+      margin: 0 auto;
+    }
+    main {
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      flex: 1;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--primary);
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 1.35rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .card p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      flex: 1;
+    }
+    .btn {
+      display: inline-block;
+      text-align: center;
+      background: var(--primary);
+      color: #0b0f19;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover {
+      border-color: var(--primary);
+      background: rgba(56, 189, 248, 0.08);
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    input[type="file"] {
+      width: 100%;
+      padding: 0.5rem;
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    pre {
+      background: var(--surface);
+      padding: 0.85rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      color: var(--success);
+      margin-top: 0.75rem;
+    }
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge">RFC HTTP/1.1 • Non-Blocking Java NIO</div>
+    <h1>LocalServer 2.0</h1>
+    <p class="subtitle">A crash-proof, single-threaded, high-performance event-driven web server built strictly with core Java.</p>
+  </header>
+
+  <main>
+    <!-- Card 1: File Storage -->
+    <div class="card">
+      <h2>📁 File Uploads & Directory</h2>
+      <p>Test multipart file uploads with bit-for-bit integrity validation, or browse the upload directory listing.</p>
+      <form id="uploadForm" class="form-group">
+        <input type="file" id="fileInput" name="file" required style="margin-bottom: 0.75rem;">
+        <button type="submit" class="btn" style="width: 100%;">Upload File (POST)</button>
+      </form>
+      <div id="uploadResult" style="display: none;">
+        <pre id="uploadOutput"></pre>
+      </div>
+      <a href="/files/" class="btn btn-outline" style="margin-top: 0.5rem;">Browse Directory Listing (/files/)</a>
+    </div>
+
+    <!-- Card 2: CGI Gateway -->
+    <div class="card">
+      <h2>⚡ Multi-Interpreter CGI</h2>
+      <p>Execute dynamic scripts via ProcessBuilder. Supports Java, Python, and Shell with PATH_INFO and streaming stdin.</p>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: auto;">
+        <button onclick="runCgi('/cgi?name=Explorer')" class="btn">Test Java CGI (GET /cgi)</button>
+        <button onclick="runCgiPost()" class="btn btn-outline">Test CGI (POST with Payload)</button>
+      </div>
+      <div id="cgiResult" style="display: none; margin-top: 0.75rem;">
+        <pre id="cgiOutput"></pre>
+      </div>
+    </div>
+
+    <!-- Card 3: Admin & Metrics -->
+    <div class="card">
+      <h2>📊 Metrics & Virtual Hosts</h2>
+      <p>Monitor real-time server health, connection states, response distributions, and virtual host routing.</p>
+      <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: auto;">
+        <a href="/admin.html" class="btn">Open Admin Dashboard</a>
+        <a href="/api/metrics" class="btn btn-outline" target="_blank">View JSON Metrics (/api/metrics)</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    LocalServer 2.0 • Event-Driven Java NIO Multiplexing • 99.5%+ Availability Target
+  </footer>
+
+  <script>
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) return;
+      const formData = new FormData();
+      formData.append('note', 'web-upload');
+      formData.append('file', fileInput.files[0]);
+
+      try {
+        const res = await fetch('/files/', { method: 'POST', body: formData });
+        const data = await res.json();
+        document.getElementById('uploadResult').style.display = 'block';
+        document.getElementById('uploadOutput').textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        document.getElementById('uploadResult').style.display = 'block';
+        document.getElementById('uploadOutput').textContent = 'Error: ' + err.message;
+      }
+    });
+
+    async function runCgi(url) {
+      try {
+        const res = await fetch(url);
+        const text = await res.text();
+        document.getElementById('cgiResult').style.display = 'block';
+        document.getElementById('cgiOutput').textContent = text;
+      } catch (err) {
+        document.getElementById('cgiResult').style.display = 'block';
+        document.getElementById('cgiOutput').textContent = 'Error: ' + err.message;
+      }
+    }
+
+    async function runCgiPost() {
+      try {
+        const res = await fetch('/cgi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: 'Hello from LocalServer interactive POST request!'
+        });
+        const text = await res.text();
+        document.getElementById('cgiResult').style.display = 'block';
+        document.getElementById('cgiOutput').textContent = text;
+      } catch (err) {
+        document.getElementById('cgiResult').style.display = 'block';
+        document.getElementById('cgiOutput').textContent = 'Error: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
