@@ -17,7 +17,8 @@ import utils.Json;
  * Loads, validates, and models the server configuration.
  */
 public final class ConfigLoader {
-    private ConfigLoader() {}
+    private ConfigLoader() {
+    }
 
     public record RouteConfig(
             String path,
@@ -27,31 +28,34 @@ public final class ConfigLoader {
             String redirect,
             int redirectStatus,
             boolean directoryListing,
-            boolean cgi
-    ) {}
+            boolean cgi) {
+    }
 
     public record VirtualServer(
             String address,
             List<Integer> ports,
-            List<String> serverNames
-    ) {
+            List<String> serverNames) {
         public String defaultName() {
             return serverNames.isEmpty() ? address : serverNames.get(0);
         }
 
         public boolean matchesHost(String hostHeader) {
-            if (hostHeader == null || hostHeader.isBlank()) return false;
+            if (hostHeader == null || hostHeader.isBlank())
+                return false;
             String host = hostHeader.trim().toLowerCase(Locale.ROOT);
             int colon = host.indexOf(':');
-            if (colon >= 0) host = host.substring(0, colon);
+            if (colon >= 0)
+                host = host.substring(0, colon);
             for (String name : serverNames) {
-                if (name.equalsIgnoreCase(host)) return true;
+                if (name.equalsIgnoreCase(host))
+                    return true;
             }
             return false;
         }
     }
 
-    public record CgiConfig(String extension, String command) {}
+    public record CgiConfig(String extension, String command) {
+    }
 
     public record ServerConfig(
             Path rootDir,
@@ -61,8 +65,7 @@ public final class ConfigLoader {
             Map<Integer, Path> errorPages,
             List<RouteConfig> routes,
             List<VirtualServer> servers,
-            CgiConfig cgi
-    ) {
+            CgiConfig cgi) {
         public List<InetSocketAddress> getListenAddresses() {
             List<InetSocketAddress> addrs = new ArrayList<>();
             Set<String> seen = new HashSet<>();
@@ -88,7 +91,8 @@ public final class ConfigLoader {
         }
 
         public VirtualServer resolveServer(String hostHeader, List<VirtualServer> candidates) {
-            if (candidates == null || candidates.isEmpty()) return null;
+            if (candidates == null || candidates.isEmpty())
+                return null;
             if (hostHeader != null && !hostHeader.isBlank()) {
                 for (VirtualServer s : candidates) {
                     if (s.matchesHost(hostHeader)) {
@@ -128,10 +132,12 @@ public final class ConfigLoader {
 
         // 2. Limits & timeouts
         long maxBodySize = getLong(rootObj, "max_body_size", 1048576L);
-        if (maxBodySize < 0) throw new IllegalArgumentException("max_body_size cannot be negative");
+        if (maxBodySize < 0)
+            throw new IllegalArgumentException("max_body_size cannot be negative");
 
         int timeout = (int) getLong(rootObj, "request_timeout_seconds", 15L);
-        if (timeout < 1) timeout = 15;
+        if (timeout < 1)
+            timeout = 15;
 
         // 3. Error pages
         Map<Integer, Path> errorPages = new HashMap<>();
@@ -143,8 +149,31 @@ public final class ConfigLoader {
                     if (Files.isRegularFile(pagePath)) {
                         errorPages.put(code, pagePath.toRealPath());
                     }
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
+        } else {
+            Path defaultErrorDir = basePath.resolve("error_pages").normalize();
+            if (Files.isDirectory(defaultErrorDir)) {
+                try (var stream = Files.list(defaultErrorDir)) {
+                    List<Path> files = stream.filter(Files::isRegularFile).toList();
+                    for (Path p : files) {
+                        String name = p.getFileName().toString();
+                        if (name.endsWith(".html")) {
+                            try {
+                                int code = Integer.parseInt(name.substring(0, name.length() - 5));
+                                errorPages.put(code, p.toRealPath());
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        }
+
+        if (errorPages.isEmpty()) {
+            throw new IllegalArgumentException("No error pages found");
         }
 
         // 4. CGI
@@ -161,12 +190,14 @@ public final class ConfigLoader {
             for (Object ro : routeList) {
                 if (ro instanceof Map<?, ?> rm) {
                     String path = getString(rm, "path", "/");
-                    if (!path.startsWith("/")) path = "/" + path;
+                    if (!path.startsWith("/"))
+                        path = "/" + path;
 
                     List<String> methods = new ArrayList<>();
                     if (rm.get("methods") instanceof List<?> ml) {
                         for (Object m : ml) {
-                            if (m != null) methods.add(m.toString().toUpperCase(Locale.ROOT));
+                            if (m != null)
+                                methods.add(m.toString().toUpperCase(Locale.ROOT));
                         }
                     }
                     if (methods.isEmpty()) {
@@ -180,7 +211,8 @@ public final class ConfigLoader {
                     boolean dirListing = getBoolean(rm, "directory_listing", false);
                     boolean isCgi = getBoolean(rm, "cgi", false);
 
-                    routes.add(new RouteConfig(path, methods, routeRoot, defaultFile, redirect, redirectStatus, dirListing, isCgi));
+                    routes.add(new RouteConfig(path, methods, routeRoot, defaultFile, redirect, redirectStatus,
+                            dirListing, isCgi));
                 }
             }
         }
@@ -214,7 +246,8 @@ public final class ConfigLoader {
                         List<String> names = new ArrayList<>();
                         if (sm.get("server_names") instanceof List<?> nl) {
                             for (Object no : nl) {
-                                if (no != null) names.add(no.toString().trim());
+                                if (no != null)
+                                    names.add(no.toString().trim());
                             }
                         }
 
@@ -240,17 +273,23 @@ public final class ConfigLoader {
 
     private static long getLong(Map<?, ?> map, String key, long defaultVal) {
         Object v = map.get(key);
-        if (v instanceof Number n) return n.longValue();
+        if (v instanceof Number n)
+            return n.longValue();
         if (v != null) {
-            try { return Long.parseLong(v.toString()); } catch (NumberFormatException ignored) {}
+            try {
+                return Long.parseLong(v.toString());
+            } catch (NumberFormatException ignored) {
+            }
         }
         return defaultVal;
     }
 
     private static boolean getBoolean(Map<?, ?> map, String key, boolean defaultVal) {
         Object v = map.get(key);
-        if (v instanceof Boolean b) return b;
-        if (v != null) return Boolean.parseBoolean(v.toString());
+        if (v instanceof Boolean b)
+            return b;
+        if (v != null)
+            return Boolean.parseBoolean(v.toString());
         return defaultVal;
     }
 }

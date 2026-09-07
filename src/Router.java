@@ -10,34 +10,24 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import utils.Json;
 import utils.Multipart;
 import utils.Session;
 
 /**
  * High-performance HTTP request router, static asset server,
- * multipart upload handler, CGI dispatcher, and metrics provider.
+ * multipart upload handler, and CGI dispatcher.
  */
 public final class Router {
     private static final Set<String> SUPPORTED_METHODS = Set.of("GET", "POST", "DELETE");
     private final ConfigLoader.ServerConfig config;
     private final Session sessionStore = new Session();
 
-    // Metrics counters
-    private final long startTime = System.currentTimeMillis();
-    private final AtomicLong totalRequests = new AtomicLong();
-    private final AtomicLong count2xx = new AtomicLong();
-    private final AtomicLong count3xx = new AtomicLong();
-    private final AtomicLong count4xx = new AtomicLong();
-    private final AtomicLong count5xx = new AtomicLong();
-
     public Router(ConfigLoader.ServerConfig config) {
         this.config = config;
     }
 
     public HttpResponse handle(HttpRequest req, ConfigLoader.VirtualServer server, int port) {
-        totalRequests.incrementAndGet();
         Session.Result sessionResult = sessionStore.resolve(req.header("cookie"));
         HttpResponse res;
 
@@ -56,7 +46,6 @@ public final class Router {
             res.header("X-Server-Name", server.defaultName());
         }
 
-        trackStatus(res.status());
         return res;
     }
 
@@ -68,11 +57,6 @@ public final class Router {
             HttpResponse err = ErrorPages.response(405, config.errorPages());
             err.setHeader("Allow", "GET, POST, DELETE");
             return err;
-        }
-
-        // Internal bonus metrics endpoint
-        if (req.path().equals("/api/metrics") || req.path().equals("/metrics")) {
-            return metricsResponse();
         }
 
         // Find matching route by longest prefix
@@ -263,6 +247,7 @@ public final class Router {
         HttpResponse res = new HttpResponse(200);
         res.setHeader("Content-Type", mimeType(file));
         res.setHeader("Content-Length", String.valueOf(data.length));
+        res.setHeader("Content-Disposition", "inline");
         res.body(data);
         return res;
     }
@@ -290,55 +275,48 @@ public final class Router {
         HttpResponse res = new HttpResponse(200);
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.setHeader("Content-Length", String.valueOf(html.length));
+        res.setHeader("Content-Disposition", "inline");
         res.body(html);
         return res;
-    }
-
-    private HttpResponse metricsResponse() {
-        long uptimeSec = (System.currentTimeMillis() - startTime) / 1000;
-        Runtime rt = Runtime.getRuntime();
-        long totalMem = rt.totalMemory() / (1024 * 1024);
-        long freeMem = rt.freeMemory() / (1024 * 1024);
-        long usedMem = totalMem - freeMem;
-
-        Map<String, Object> metrics = new LinkedHashMap<>();
-        metrics.put("server", "LocalServer 2.0 (Java NIO)");
-        metrics.put("uptime_seconds", uptimeSec);
-        metrics.put("total_requests", totalRequests.get());
-        metrics.put("status_2xx", count2xx.get());
-        metrics.put("status_3xx", count3xx.get());
-        metrics.put("status_4xx", count4xx.get());
-        metrics.put("status_5xx", count5xx.get());
-        metrics.put("memory_used_mb", usedMem);
-        metrics.put("memory_total_mb", totalMem);
-        metrics.put("available_processors", rt.availableProcessors());
-
-        HttpResponse res = new HttpResponse(200);
-        res.setHeader("Content-Type", "application/json; charset=utf-8");
-        res.body(Json.stringify(metrics).getBytes(StandardCharsets.UTF_8));
-        return res;
-    }
-
-    private void trackStatus(int code) {
-        if (code >= 200 && code < 300) count2xx.incrementAndGet();
-        else if (code >= 300 && code < 400) count3xx.incrementAndGet();
-        else if (code >= 400 && code < 500) count4xx.incrementAndGet();
-        else if (code >= 500) count5xx.incrementAndGet();
     }
 
     private static String mimeType(Path file) {
         String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
         if (name.endsWith(".html") || name.endsWith(".htm")) return "text/html; charset=utf-8";
         if (name.endsWith(".css")) return "text/css; charset=utf-8";
-        if (name.endsWith(".js")) return "application/javascript; charset=utf-8";
+        if (name.endsWith(".js") || name.endsWith(".mjs")) return "application/javascript; charset=utf-8";
         if (name.endsWith(".json")) return "application/json; charset=utf-8";
-        if (name.endsWith(".txt") || name.endsWith(".md")) return "text/plain; charset=utf-8";
+        if (name.endsWith(".xml")) return "application/xml; charset=utf-8";
+        if (name.endsWith(".pdf")) return "application/pdf";
         if (name.endsWith(".png")) return "image/png";
         if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
         if (name.endsWith(".gif")) return "image/gif";
         if (name.endsWith(".svg")) return "image/svg+xml";
+        if (name.endsWith(".webp")) return "image/webp";
+        if (name.endsWith(".avif")) return "image/avif";
         if (name.endsWith(".ico")) return "image/x-icon";
-        return "application/octet-stream";
+        if (name.endsWith(".bmp")) return "image/bmp";
+        if (name.endsWith(".mp4")) return "video/mp4";
+        if (name.endsWith(".webm")) return "video/webm";
+        if (name.endsWith(".ogg") || name.endsWith(".ogv")) return "video/ogg";
+        if (name.endsWith(".mp3")) return "audio/mpeg";
+        if (name.endsWith(".wav")) return "audio/wav";
+        if (name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".log")
+                || name.endsWith(".csv") || name.endsWith(".sh") || name.endsWith(".py")
+                || name.endsWith(".java") || name.endsWith(".c") || name.endsWith(".cpp")
+                || name.endsWith(".h") || name.endsWith(".hpp") || name.endsWith(".yaml")
+                || name.endsWith(".yml") || name.endsWith(".conf") || name.endsWith(".ini")) {
+            return "text/plain; charset=utf-8";
+        }
+
+        try {
+            String probed = Files.probeContentType(file);
+            if (probed != null && !probed.isBlank()) {
+                return probed.startsWith("text/") ? probed + "; charset=utf-8" : probed;
+            }
+        } catch (Exception ignored) {}
+
+        return "text/plain; charset=utf-8";
     }
 
     private static String getFileExtension(String fn) {

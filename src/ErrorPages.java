@@ -23,8 +23,21 @@ public final class ErrorPages {
                     res.setHeader("Connection", "close");
                     return res;
                 } catch (IOException ignored) {
-                    // Fall back to built-in page
+                    // Fall back to default error page
                 }
+            }
+        }
+
+        Path defaultPath = Path.of("error_pages", statusCode + ".html");
+        if (Files.isRegularFile(defaultPath)) {
+            try {
+                byte[] content = Files.readAllBytes(defaultPath);
+                res.body(content);
+                res.setHeader("Content-Type", "text/html; charset=utf-8");
+                res.setHeader("Connection", "close");
+                return res;
+            } catch (IOException ignored) {
+                // Fall back to built-in page
             }
         }
 

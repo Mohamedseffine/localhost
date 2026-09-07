@@ -349,7 +349,7 @@ HTML error page generator.
 #### Functions:
 - **`public static HttpResponse response(int statusCode, Map<Integer, Path> customErrorPages)`**:
   - *Use Case*: Error response generation.
-  - *Implementation*: Checks if a custom error file is mapped and exists on disk. If so, reads and returns it. Otherwise, renders a modern, dark-themed responsive default HTML error page with status code and RFC reason phrase.
+  - *Implementation*: Checks if a custom error file is mapped and exists on disk. If not, falls back to the default error page in `error_pages/<statusCode>.html`. If neither exists, renders a built-in dark-themed responsive default HTML error page with status code and RFC reason phrase.
 
 ---
 

@@ -100,13 +100,7 @@ pass "Multipart upload bit-for-bit integrity"
 expect_status 200 "DELETE file" -X DELETE "$BASE_URL/files/$up_file"
 expect_status 404 "Deleted file is gone" "$BASE_URL/files/$up_file"
 
-echo "=== 8. Metrics & Admin API ==="
-metrics_json=$(curl -sS "$BASE_URL/api/metrics")
-printf '%s\n' "$metrics_json" | grep -Fq '"server":"LocalServer 2.0 (Java NIO)"' || fail "Metrics API server field"
-printf '%s\n' "$metrics_json" | grep -Fq '"uptime_seconds"' || fail "Metrics API uptime"
-pass "Metrics JSON API endpoint"
-
-echo "=== 9. Concurrency & Stress Check ==="
+echo "=== 8. Concurrency & Stress Check ==="
 seq 1 100 | xargs -n 1 -P 10 sh -c 'curl -fsS -o /dev/null "$0/"' "$BASE_URL" || fail "100 concurrent requests"
 pass "100 concurrent requests successfully served"
 

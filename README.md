@@ -13,7 +13,6 @@ An ultra-lightweight, crash-proof, single-threaded HTTP/1.1 web server in pure J
 - **Multipart Uploads & File Management**: Fast streaming multipart upload parser with bit-for-bit file integrity validation.
 - **Multi-Language CGI Engine**: Dynamic CGI script execution (`ProcessBuilder`) supporting Python, Shell, and Java scripts.
 - **Session & Cookie System**: Expiring session store (`Set-Cookie` with `Max-Age`, `Path=/`, `HttpOnly`, `SameSite=Lax`).
-- **Interactive Admin Dashboard & Metrics**: Real-time metrics API at `/api/metrics` and web UI at `/admin.html`.
 - **100% Siege Availability**: Stress-tested to over 8,600 trans/sec with 0 failed transactions and 0 hanging descriptors.
 
 ---

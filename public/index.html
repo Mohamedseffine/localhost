@@ -165,16 +165,17 @@
   <main>
     <!-- Card 1: File Storage -->
     <div class="card">
-      <h2>📁 File Uploads & Directory</h2>
-      <p>Test multipart file uploads with bit-for-bit integrity validation, or browse the upload directory listing.</p>
+      <h2>📁 Multipart File Upload</h2>
+      <p>Test multipart file uploads with streaming boundary decoding and server-side storage validation.</p>
       <form id="uploadForm" class="form-group">
         <input type="file" id="fileInput" name="file" required style="margin-bottom: 0.75rem;">
         <button type="submit" class="btn" style="width: 100%;">Upload File (POST)</button>
       </form>
       <div id="uploadResult" style="display: none;">
         <pre id="uploadOutput"></pre>
+        <div id="fileOpenLink" style="margin-top: 0.5rem;"></div>
       </div>
-      <a href="/files/" class="btn btn-outline" style="margin-top: 0.5rem;">Browse Directory Listing (/files/)</a>
+      <a href="/files/" class="btn btn-outline" style="margin-top: 0.5rem;">Browse Files Directory (/files/)</a>
     </div>
 
     <!-- Card 2: CGI Gateway -->
@@ -187,16 +188,6 @@
       </div>
       <div id="cgiResult" style="display: none; margin-top: 0.75rem;">
         <pre id="cgiOutput"></pre>
-      </div>
-    </div>
-
-    <!-- Card 3: Admin & Metrics -->
-    <div class="card">
-      <h2>📊 Metrics & Virtual Hosts</h2>
-      <p>Monitor real-time server health, connection states, response distributions, and virtual host routing.</p>
-      <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: auto;">
-        <a href="/admin.html" class="btn">Open Admin Dashboard</a>
-        <a href="/api/metrics" class="btn btn-outline" target="_blank">View JSON Metrics (/api/metrics)</a>
       </div>
     </div>
   </main>
@@ -219,9 +210,17 @@
         const data = await res.json();
         document.getElementById('uploadResult').style.display = 'block';
         document.getElementById('uploadOutput').textContent = JSON.stringify(data, null, 2);
+        const linkContainer = document.getElementById('fileOpenLink');
+        if (data.file) {
+          const filePath = data.file.startsWith('uploads/') ? data.file.substring(8) : data.file;
+          linkContainer.innerHTML = `<a href="/files/${filePath}" class="btn" style="display: block; margin-top: 0.5rem;" target="_blank">Open File in Browser</a>`;
+        } else {
+          linkContainer.innerHTML = '';
+        }
       } catch (err) {
         document.getElementById('uploadResult').style.display = 'block';
         document.getElementById('uploadOutput').textContent = 'Error: ' + err.message;
+        document.getElementById('fileOpenLink').innerHTML = '';
       }
     });
 
