@@ -52,6 +52,18 @@ public final class Router {
     private HttpResponse route(HttpRequest req, ConfigLoader.VirtualServer server, int port) throws IOException {
         String method = req.method().toUpperCase(Locale.ROOT);
 
+        // 301-redirect paths with consecutive slashes to their canonical form
+        int qIdx = req.uri().indexOf('?');
+        String rawPath = qIdx >= 0 ? req.uri().substring(0, qIdx) : req.uri();
+        String normalizedPath = normalizePath(rawPath);
+        if (!rawPath.equals(normalizedPath)) {
+            String location = normalizedPath + (qIdx >= 0 ? "?" + req.uri().substring(qIdx + 1) : "");
+            HttpResponse red = new HttpResponse(301);
+            red.setHeader("Location", location);
+            red.body(("Redirecting to " + location + "\n").getBytes(StandardCharsets.UTF_8));
+            return red;
+        }
+
         // Check globally supported methods
         if (!SUPPORTED_METHODS.contains(method)) {
             HttpResponse err = ErrorPages.response(405, config.errorPages());
@@ -222,7 +234,8 @@ public final class Router {
     }
 
     private Path resolvePath(String requestPath, ConfigLoader.RouteConfig route) {
-        String sub = requestPath.startsWith(route.path()) ? requestPath.substring(route.path().length()) : "";
+        String p = normalizePath(requestPath);
+        String sub = p.startsWith(route.path()) ? p.substring(route.path().length()) : "";
         while (sub.startsWith("/")) sub = sub.substring(1);
 
         Path routeRoot = config.rootDir().resolve(route.root()).normalize();
@@ -235,11 +248,18 @@ public final class Router {
     }
 
     private boolean matchesRoute(String requestPath, String routePath) {
+        String p = normalizePath(requestPath);
         if (routePath.equals("/")) return true;
         if (routePath.endsWith("/")) {
-            return requestPath.startsWith(routePath) || requestPath.equals(routePath.substring(0, routePath.length() - 1));
+            return p.startsWith(routePath) || p.equals(routePath.substring(0, routePath.length() - 1));
         }
-        return requestPath.equals(routePath) || requestPath.startsWith(routePath + "/");
+        return p.equals(routePath) || p.startsWith(routePath + "/");
+    }
+
+    private static String normalizePath(String path) {
+        if (path == null || path.isEmpty()) return "/";
+        String normalized = path.replaceAll("/{2,}", "/");
+        return normalized.startsWith("/") ? normalized : "/" + normalized;
     }
 
     private HttpResponse serveFile(Path file) throws IOException {

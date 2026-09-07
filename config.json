@@ -13,8 +13,8 @@
     "500": "error_pages/500.html"
   },
   "cgi": {
-    "extension": "java",
-    "command": "java"
+    "extension": "sh",
+    "command": "/bin/bash"
   },
   "routes": [
     {
@@ -41,7 +41,7 @@
         "GET",
         "POST"
       ],
-      "root": "cgi/Echo.java",
+      "root": "cgi/info.sh",
       "cgi": true
     },
     {

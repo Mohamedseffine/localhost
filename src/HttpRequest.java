@@ -26,16 +26,24 @@ public final class HttpRequest {
         this.method = method;
         this.uri = uri;
         int qIdx = uri.indexOf('?');
+        String rawPath;
         if (qIdx >= 0) {
-            this.path = uri.substring(0, qIdx);
+            rawPath = uri.substring(0, qIdx);
             this.queryString = uri.substring(qIdx + 1);
         } else {
-            this.path = uri;
+            rawPath = uri;
             this.queryString = "";
         }
+        this.path = normalizePath(rawPath);
         this.version = version;
         this.headers = Collections.unmodifiableMap(headers);
         this.body = body == null ? new byte[0] : body;
+    }
+
+    public static String normalizePath(String path) {
+        if (path == null || path.isEmpty()) return "/";
+        String normalized = path.replaceAll("/{2,}", "/");
+        return normalized.startsWith("/") ? normalized : "/" + normalized;
     }
 
     public String method() { return method; }
