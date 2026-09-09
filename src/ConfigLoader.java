@@ -116,18 +116,31 @@ public final class ConfigLoader {
         }
 
         String jsonText = Files.readString(absPath, StandardCharsets.UTF_8);
+        if (jsonText.isEmpty()) {
+            throw new IllegalArgumentException("The config file is Empty");
+        }
+
         Map<String, Object> rootObj = Json.parseObject(jsonText);
+        if (rootObj == null) {
+            throw new IllegalArgumentException("The config file is Empty");
+        }
         Path basePath = absPath.getParent();
 
         // 1. Root & uploads directory
-        String rootStr = getString(rootObj, "root", "public");
+        String rootStr = getString(rootObj, "root");
+        if (rootStr == null) {
+            throw new IllegalArgumentException("Missing root directory");
+        }
         Path rootDir = basePath.resolve(rootStr).normalize();
         if (!Files.isDirectory(rootDir)) {
             throw new IllegalArgumentException("Root directory does not exist: " + rootDir);
         }
         rootDir = rootDir.toRealPath();
 
-        String uploadsStr = getString(rootObj, "uploads", "uploads");
+        String uploadsStr = getString(rootObj, "uploads");
+        if (uploadsStr == null) {
+            throw new IllegalArgumentException("Missing uploads directory");
+        }
         Path uploadDir = rootDir.resolve(uploadsStr).normalize();
         if (!uploadDir.startsWith(rootDir)) {
             throw new IllegalArgumentException("Uploads directory must be inside root directory");
@@ -136,13 +149,14 @@ public final class ConfigLoader {
         uploadDir = uploadDir.toRealPath();
 
         // 2. Limits & timeouts
-        long maxBodySize = getLong(rootObj, "max_body_size", 1048576L);
+        long maxBodySize = getLong(rootObj, "max_body_size");
         if (maxBodySize <= 0)
             throw new IllegalArgumentException("Error parsing max_body_size" + rootObj.get("max_body_size"));
 
-        int timeout = (int) getLong(rootObj, "request_timeout_seconds", 15L);
+        int timeout = (int) getLong(rootObj, "request_timeout_seconds");
         if (timeout < 1)
-            throw new IllegalArgumentException("Error parsing request_timeout_seconds" + rootObj.get("request_timeout_seconds"));
+            throw new IllegalArgumentException(
+                    "Error parsing request_timeout_seconds" + rootObj.get("request_timeout_seconds"));
 
         // 3. Error pages
         Map<Integer, Path> errorPages = new HashMap<>();
@@ -185,8 +199,14 @@ public final class ConfigLoader {
         // 4. CGI
         CgiConfig cgi = new CgiConfig("py", "python3");
         if (rootObj.get("cgi") instanceof Map<?, ?> cgiMap) {
-            String ext = getString(cgiMap, "extension", "py");
-            String cmd = getString(cgiMap, "command", "python3");
+            String ext = getString(cgiMap, "extension");
+            if (ext == null) {
+                throw new IllegalArgumentException("Missing extension for cgi");
+            }
+            String cmd = getString(cgiMap, "command");
+            if (cmd == null) {
+                throw new IllegalArgumentException("Missing command for cgi");
+            }
             cgi = new CgiConfig(ext, cmd);
         }
 
@@ -195,29 +215,42 @@ public final class ConfigLoader {
         if (rootObj.get("routes") instanceof List<?> routeList) {
             for (Object ro : routeList) {
                 if (ro instanceof Map<?, ?> rm) {
-                    String path = getString(rm, "path", "/");
+                    String path = getString(rm, "path");
+                    if (path == null) {
+                        throw new IllegalArgumentException("Missing path for route");
+                    }
                     if (!path.startsWith("/"))
                         path = "/" + path;
 
+                    List<String> AcceptedMethods = List.of("GET", "POST", "DELETE");
                     List<String> methods = new ArrayList<>();
                     if (rm.get("methods") instanceof List<?> ml) {
                         for (Object m : ml) {
-                            if (m != null)
-                                methods.add(m.toString().toUpperCase(Locale.ROOT));
+                            if (m == null || !AcceptedMethods.contains(m.toString().toUpperCase(Locale.ROOT))) {
+                                throw new IllegalArgumentException("Invalid method for " + path + ": " + m);
+                            }
+                            methods.add(m.toString().toUpperCase(Locale.ROOT));
                         }
                     }
                     if (methods.isEmpty()) {
-                        methods.add("GET");
+                        throw new IllegalArgumentException("Inexistant method for:" + path);
                     }
-
-                    String routeRoot = getString(rm, "root", ".");
-                    String defaultFile = rm.containsKey("default_file") ? String.valueOf(rm.get("default_file")) : null;
                     String redirect = rm.containsKey("redirect") ? String.valueOf(rm.get("redirect")) : null;
-                    int redirectStatus = (int) getLong(rm, "redirect_status", 302L);
+                    long redirectStatus = getLong(rm, "redirect_status");
+                    if (redirect != null && (redirectStatus < 300 || redirectStatus > 399)) {
+                        throw new IllegalArgumentException(
+                                "Invalid redirect status for " + path + ": " + redirectStatus);
+                    }
+                    String routeRoot = getString(rm, "root");
+                    if (routeRoot == null && redirect == null) {
+                        throw new IllegalArgumentException("Missing root for route: " + path);
+                    }
+                    String defaultFile = rm.containsKey("default_file") ? String.valueOf(rm.get("default_file")) : null;
+
                     boolean dirListing = getBoolean(rm, "directory_listing", false);
                     boolean isCgi = getBoolean(rm, "cgi", false);
 
-                    routes.add(new RouteConfig(path, methods, routeRoot, defaultFile, redirect, redirectStatus,
+                    routes.add(new RouteConfig(path, methods, routeRoot, defaultFile, redirect, (int) redirectStatus,
                             dirListing, isCgi));
                 }
             }
@@ -231,7 +264,10 @@ public final class ConfigLoader {
             for (Object so : serverList) {
                 if (so instanceof Map<?, ?> sm) {
                     try {
-                        String addr = getString(sm, "address", "127.0.0.1");
+                        String addr = getString(sm, "address");
+                        if (addr == null) {
+                            throw new IllegalArgumentException("Missing address for server");
+                        }
                         List<Integer> ports = new ArrayList<>();
                         Set<Integer> uniquePorts = new HashSet<>();
                         if (sm.get("ports") instanceof List<?> pl) {
@@ -272,12 +308,12 @@ public final class ConfigLoader {
         return new ServerConfig(rootDir, uploadDir, maxBodySize, timeout, errorPages, routes, servers, cgi);
     }
 
-    private static String getString(Map<?, ?> map, String key, String defaultVal) {
+    private static String getString(Map<?, ?> map, String key) {
         Object v = map.get(key);
-        return v != null ? v.toString() : defaultVal;
+        return v != null ? v.toString() : null;
     }
 
-    private static long getLong(Map<?, ?> map, String key, long defaultVal) {
+    private static long getLong(Map<?, ?> map, String key) {
         Object v = map.get(key);
         if (v instanceof Number n)
             return n.longValue();
