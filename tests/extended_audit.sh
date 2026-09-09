@@ -101,7 +101,7 @@ expect_status 200 "DELETE file" -X DELETE "$BASE_URL/files/$up_file"
 expect_status 404 "Deleted file is gone" "$BASE_URL/files/$up_file"
 
 echo "=== 8. Concurrency & Stress Check ==="
-seq 1 100 | xargs -n 1 -P 10 sh -c 'curl -fsS -o /dev/null "$0/"' "$BASE_URL" || fail "100 concurrent requests"
+seq 1 1200 | xargs -n 1 -P 10 sh -c 'curl -fsS -o /dev/null "$0/"' "$BASE_URL" || fail "100 concurrent requests"
 pass "100 concurrent requests successfully served"
 
 printf '\n===============================\nALL EXTENDED AUDIT TESTS PASSED\n===============================\n'

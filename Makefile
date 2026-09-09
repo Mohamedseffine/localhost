@@ -23,7 +23,11 @@ run: build
 	$(JAVA) -jar $(JAR_FILE) --config config.json
 
 audit: build
+	JAVA="$(JAVA)" sh tests/audit.sh
+
+extended_audit: build
 	JAVA="$(JAVA)" sh tests/extended_audit.sh
+
 
 clean:
 	rm -rf $(BUILD)
