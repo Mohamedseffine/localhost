@@ -110,6 +110,11 @@ public final class ConfigLoader {
             throw new IllegalArgumentException("Configuration file not found: " + absPath);
         }
 
+        long maxSize = 1024 * 1024;
+        if (Files.size(absPath) > maxSize) {
+            throw new IllegalArgumentException("Configuration file is too large: " + Files.size(absPath) + "Bytes.");
+        }
+
         String jsonText = Files.readString(absPath, StandardCharsets.UTF_8);
         Map<String, Object> rootObj = Json.parseObject(jsonText);
         Path basePath = absPath.getParent();
@@ -132,12 +137,12 @@ public final class ConfigLoader {
 
         // 2. Limits & timeouts
         long maxBodySize = getLong(rootObj, "max_body_size", 1048576L);
-        if (maxBodySize < 0)
-            throw new IllegalArgumentException("max_body_size cannot be negative");
+        if (maxBodySize <= 0)
+            throw new IllegalArgumentException("Error parsing max_body_size" + rootObj.get("max_body_size"));
 
         int timeout = (int) getLong(rootObj, "request_timeout_seconds", 15L);
         if (timeout < 1)
-            timeout = 15;
+            throw new IllegalArgumentException("Error parsing request_timeout_seconds" + rootObj.get("request_timeout_seconds"));
 
         // 3. Error pages
         Map<Integer, Path> errorPages = new HashMap<>();
@@ -149,7 +154,8 @@ public final class ConfigLoader {
                     if (Files.isRegularFile(pagePath)) {
                         errorPages.put(code, pagePath.toRealPath());
                     }
-                } catch (NumberFormatException ignored) {
+                } catch (NumberFormatException err) {
+                    throw new IllegalArgumentException("Error parsing error_pages" + err.getMessage());
                 }
             }
         } else {
@@ -275,13 +281,8 @@ public final class ConfigLoader {
         Object v = map.get(key);
         if (v instanceof Number n)
             return n.longValue();
-        if (v != null) {
-            try {
-                return Long.parseLong(v.toString());
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return defaultVal;
+
+        return 0;
     }
 
     private static boolean getBoolean(Map<?, ?> map, String key, boolean defaultVal) {
